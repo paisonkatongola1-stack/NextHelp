@@ -1,0 +1,149 @@
+  category_insert(data: {name: "General"})
+}
+
+mutation DeleteCategory($id: UUID!) @auth(level: NO_ACCESS) {
+  category_delete(id: $id)
+}
+
+mutation UpdateCategory($id: UUID!, $name: String!) @auth(level: NO_ACCESS) {
+  category_update(id: $id, data: {name: $name})
+}
+
+query GetCategory($id: UUID!) @auth(level: PUBLIC, insecureReason: "Categories are public metadata.") {
+  category(id: $id) {
+    name
+  }
+}
+
+query ListCategories @auth(level: PUBLIC, insecureReason: "Categories are public metadata.") {
+  categories {
+    name
+  }
+}
+
+mutation CreateComment($ticketId: UUID!, $content: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  comment_insert(data: {
+    ticketId: $ticketId,
+    content: $content,
+    authorId_expr: "auth.uid",
+    createdAt: "2023-10-27T10:00:00Z"
+  })
+}
+
+mutation DeleteComment($id: UUID!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  comment_delete(id: $id)
+}
+
+mutation UpdateComment($id: UUID!, $content: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  comment_update(key: {id: $id}, data: {content: $content})
+}
+
+query GetComment($id: UUID!) @auth(level: USER) {
+  comment(id: $id) {
+    content
+    author { name }
+  }
+}
+
+query ListComments @auth(level: USER) {
+  comments {
+    content
+    createdAt
+  }
+}
+
+mutation CreateStatusHistory($ticketId: UUID!, $newStatus: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  statusHistory_insert(data: {
+    ticketId: $ticketId,
+    newStatus: $newStatus,
+    changedById_expr: "auth.uid",
+    changedAt: "2023-10-27T10:00:00Z"
+  })
+}
+
+mutation DeleteStatusHistory($id: UUID!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  statusHistory_delete(id: $id)
+}
+
+mutation UpdateStatusHistory($id: UUID!, $newStatus: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  statusHistory_update(key: {id: $id}, data: {newStatus: $newStatus})
+}
+
+query GetStatusHistory($id: UUID!) @auth(level: USER) {
+  statusHistory(id: $id) {
+    oldStatus
+    newStatus
+  }
+}
+
+query ListStatusHistories @auth(level: USER) {
+  statusHistories {
+    newStatus
+    changedAt
+  }
+}
+
+mutation CreateTicket($title: String!, $description: String!, $priority: String!, $status: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  ticket_insert(data: {
+    title: $title,
+    description: $description,
+    priority: $priority,
+    currentStatus: $status,
+    reporterId_expr: "auth.uid",
+    createdAt: "2023-10-27T10:00:00Z"
+  })
+}
+
+mutation DeleteTicket($id: UUID!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  ticket_delete(id: $id)
+}
+
+mutation UpdateTicket($id: UUID!, $status: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  ticket_update(key: {id: $id}, data: {currentStatus: $status})
+}
+
+query GetTicket($id: UUID!) @auth(level: USER) {
+  ticket(id: $id) {
+    title
+    currentStatus
+  }
+}
+
+query ListTickets @auth(level: USER) {
+  tickets {
+    title
+    priority
+  }
+}
+
+mutation CreateUser($name: String!, $email: String!, $role: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  user_insert(data: {
+    id_expr: "auth.uid",
+    name: $name,
+    email: $email,
+    role: $role
+  })
+}
+
+mutation DeleteUser @auth(level: USER) @auth(level: NO_ACCESS) {
+  user_delete(key: {id_expr: "auth.uid"})
+}
+
+mutation UpdateUser($name: String!) @auth(level: USER) @auth(level: NO_ACCESS) {
+  user_update(key: {id_expr: "auth.uid"}, data: {name: $name})
+}
+
+query GetMyProfile @auth(level: USER) {
+  user(key: {id_expr: "auth.uid"}) {
+    name
+    email
+    role
+  }
+}
+
+query ListUsers @auth(level: USER) {
+  users {
+    name
+    role
+  }
+}

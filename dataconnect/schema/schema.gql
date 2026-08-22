@@ -1,0 +1,35 @@
+type User @table {
+  name: String!
+  email: String!
+  role: String!
+}
+
+type Category @table {
+  name: String!
+}
+
+type Ticket @table {
+  title: String!
+  description: String!
+  priority: String!
+  currentStatus: String!
+  createdAt: Timestamp!
+  reporter: User!
+  assignedAgent: User
+  category: Category
+}
+
+type Comment @table {
+  content: String!
+  createdAt: Timestamp!
+  ticket: Ticket!
+  author: User!
+}
+
+type StatusHistory @table {
+  oldStatus: String
+  newStatus: String!
+  changedAt: Timestamp!
+  ticket: Ticket!
+  changedBy: User!
+}

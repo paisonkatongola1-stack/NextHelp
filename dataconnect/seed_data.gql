@@ -1,0 +1,24 @@
+mutation SeedDatabase @transaction {
+  user_insertMany(data: [
+    {id: "00000000-0000-0000-0000-000000000001", name: "Alice", email: "alice@example.com", role: "admin"},
+    {id: "00000000-0000-0000-0000-000000000002", name: "Bob", email: "bob@example.com", role: "agent"},
+    {id: "00000000-0000-0000-0000-000000000003", name: "Charlie", email: "charlie@example.com", role: "user"}
+  ])
+  category_insertMany(data: [
+    {id: "10000000-0000-0000-0000-000000000001", name: "Billing"},
+    {id: "10000000-0000-0000-0000-000000000002", name: "Technical"},
+    {id: "10000000-0000-0000-0000-000000000003", name: "Support"}
+  ])
+  ticket_insertMany(data: [
+    {id: "20000000-0000-0000-0000-000000000001", title: "Cannot login", description: "Login failing", priority: "High", currentStatus: "Open", createdAt: "2023-10-01T10:00:00Z", reporterId: "00000000-0000-0000-0000-000000000003", categoryId: "10000000-0000-0000-0000-000000000002"},
+    {id: "20000000-0000-0000-0000-000000000002", title: "Invoice error", description: "Amount mismatch", priority: "Medium", currentStatus: "Closed", createdAt: "2023-10-02T12:00:00Z", reporterId: "00000000-0000-0000-0000-000000000003", categoryId: "10000000-0000-0000-0000-000000000001"}
+  ])
+  comment_insertMany(data: [
+    {id: "30000000-0000-0000-0000-000000000001", content: "Looking into this", createdAt: "2023-10-01T11:00:00Z", ticketId: "20000000-0000-0000-0000-000000000001", authorId: "00000000-0000-0000-0000-000000000002"},
+    {id: "30000000-0000-0000-0000-000000000002", content: "Fixed now", createdAt: "2023-10-02T13:00:00Z", ticketId: "20000000-0000-0000-0000-000000000002", authorId: "00000000-0000-0000-0000-000000000002"}
+  ])
+  statusHistory_insertMany(data: [
+    {id: "40000000-0000-0000-0000-000000000001", newStatus: "Open", changedAt: "2023-10-01T10:00:00Z", ticketId: "20000000-0000-0000-0000-000000000001", changedById: "00000000-0000-0000-0000-000000000003"},
+    {id: "40000000-0000-0000-0000-000000000002", oldStatus: "Open", newStatus: "Closed", changedAt: "2023-10-02T13:00:00Z", ticketId: "20000000-0000-0000-0000-000000000002", changedById: "00000000-0000-0000-0000-000000000002"}
+  ])
+}

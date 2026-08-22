@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Centered Logo on 108x108 grid -->
+    <group
+        android:translateX="22"
+        android:translateY="22">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M50.67,8H13.33C10.4,8 8,10.4 8,13.33V50.67C8,53.6 10.4,56 13.33,56H50.67C53.6,56 56,53.6 56,50.67V13.33C56,10.4 53.6,8 50.67,8M50.67,50.67H13.33V13.33H50.67V50.67M45.33,32H24V26.67H45.33V32M45.33,42.67H24V37.33H45.33V42.67M34.67,21.33H24V16H34.67V21.33Z" />
+        <path
+            android:fillColor="#4FD8EB"
+            android:pathData="M32,5.33L12,54.11L13.89,56L32,48L50.11,56L52,54.11L32,5.33Z"
+            android:alpha="0.4"/>
+    </group>
+</vector>

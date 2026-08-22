@@ -1,0 +1,7 @@
+mutation CreateCategory @auth(level: ADMIN) {
+  category_insert(data: {name: "General"})
+}
+
+mutation DeleteCategory($id: UUID!) @auth(level: ADMIN) {
+  category_delete(id: $id)
+}
