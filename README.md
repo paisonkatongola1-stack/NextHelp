@@ -81,9 +81,12 @@ domain interfaces and talks to Firebase.
   `orderBy(createdAt desc)` — create that composite index if the console links one.
 - **Collection group index** for `comments` is auto-created for single-field
   queries (`timestamp`).
-- **Push notifications**: the client only *registers* tokens. Delivering pushes
-  when a ticket changes requires a backend trigger (Cloud Function) that watches
-  ticket documents and sends to the matching `fcmTokens/{token}` entries.
+- **Push notifications**: `functions/` hosts Firestore triggers that deliver
+  pushes when tickets are created/assigned/reassigned or change status, and when
+  comments arrive. Deploy with `firebase deploy --only functions`. The client
+  stamps `updatedBy` on mutations and `authorId` on comments so senders don't
+  get notified about their own actions; invalid FCM tokens are pruned after a
+  failed send.
 - **Firestore rules** must allow:
   - ticket read/create scoped by `creatorId` vs. agent role
   - `tickets/{id}/comments` subcollection read/write for viewers of the ticket

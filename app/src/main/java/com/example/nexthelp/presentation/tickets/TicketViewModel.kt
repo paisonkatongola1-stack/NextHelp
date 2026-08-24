@@ -311,6 +311,7 @@ class TicketViewModel @Inject constructor(
             val user = authRepository.currentUser.first()
             val comment = TicketComment(
                 id = UUID.randomUUID().toString(),
+                authorId = user?.id,
                 authorName = user?.fullName?.ifBlank { null } ?: "You",
                 content = content.trim()
             )

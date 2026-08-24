@@ -17,3 +17,7 @@ local.properties
 
 # Kotlin build session cache
 .kotlin/
+
+# Cloud Functions
+functions/node_modules/
+functions/.runtimeconfig.json

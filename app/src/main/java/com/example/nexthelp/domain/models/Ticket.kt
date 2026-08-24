@@ -48,9 +48,10 @@ data class Ticket(
 @Keep
 data class TicketComment(
     val id: String = "",
+    val authorId: String? = null,
     val authorName: String = "",
     val content: String = "",
     val timestamp: Long = System.currentTimeMillis()
 ) {
-    constructor() : this("", "", "", 0L)
+    constructor() : this("", null, "", "", 0L)
 }

@@ -143,7 +143,14 @@ class TicketRepositoryImpl @Inject constructor(
     override suspend fun updateTicketStatus(ticketId: String, status: String): Resource<Unit> {
         return try {
             firestore.collection(TICKETS).document(ticketId)
-                .update(mapOf("status" to status, "updatedAt" to System.currentTimeMillis()))
+                .update(
+                    mapOf(
+                        "status" to status,
+                        "updatedAt" to System.currentTimeMillis(),
+                        // Lets the push backend skip notifying whoever made the change.
+                        "updatedBy" to sessionManager.currentUser.value?.id
+                    )
+                )
                 .await()
             Resource.Success(Unit)
         } catch (e: Exception) {
@@ -179,7 +186,9 @@ class TicketRepositoryImpl @Inject constructor(
             val updates = mutableMapOf<String, Any?>(
                 ASSIGNED_AGENT_ID to agentId,
                 ASSIGNED_AGENT_NAME to agentName,
-                "updatedAt" to System.currentTimeMillis()
+                "updatedAt" to System.currentTimeMillis(),
+                // Lets the push backend skip notifying whoever made the change.
+                "updatedBy" to sessionManager.currentUser.value?.id
             )
             // Keep status consistent with the workflow: assigning an untouched
             // ticket moves it forward; unassigning an ASSIGNED ticket reopens it.
