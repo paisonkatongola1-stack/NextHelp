@@ -21,3 +21,16 @@ local.properties
 # Cloud Functions
 functions/node_modules/
 functions/.runtimeconfig.json
+
+# Release signing (never commit)
+keystore/
+keystore.properties
+
+# Distributed via Firebase Hosting, not git
+public/apk/
+
+# Firebase CLI cache
+.firebase/
+
+# Firebase CLI cache
+.firebase/

@@ -16,6 +16,11 @@ val localProperties = Properties().apply {
 
 fun secret(key: String): String = "\"${localProperties.getProperty(key) ?: ""}\""
 
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) load(FileInputStream(file))
+}
+
 android {
     namespace = "com.example.nexthelp"
     compileSdk = 37
@@ -38,6 +43,17 @@ android {
         buildConfigField("String", "WEB_CLIENT_ID", secret("nexthelp.webClientId"))
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystoreProperties.isNotEmpty()) {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "DEV_ADMIN_EMAIL", secret("nexthelp.dev.adminEmail"))
@@ -46,6 +62,8 @@ android {
         release {
             buildConfigField("String", "DEV_ADMIN_EMAIL", "\"\"")
             buildConfigField("String", "DEV_ADMIN_PASSWORD", "\"\"")
+
+            signingConfig = signingConfigs.getByName("release")
 
             optimization {
                 enable = true
