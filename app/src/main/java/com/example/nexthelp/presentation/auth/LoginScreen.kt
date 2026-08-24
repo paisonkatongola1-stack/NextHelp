@@ -159,9 +159,17 @@ fun LoginScreen(
                 OutlinedButton(
                     onClick = { viewModel.loginWithGoogle(context) },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = MaterialTheme.shapes.medium
+                    shape = MaterialTheme.shapes.medium,
+                    enabled = loginState !is Resource.Loading
                 ) {
-                    Text("Continue with Google")
+                    if (loginState is Resource.Loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Continue with Google")
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))

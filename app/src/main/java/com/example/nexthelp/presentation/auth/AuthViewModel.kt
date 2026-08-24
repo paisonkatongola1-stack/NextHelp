@@ -1,12 +1,21 @@
 package com.example.nexthelp.presentation.auth
 
 import android.content.Context
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.nexthelp.core.util.AppConfig
 import com.example.nexthelp.core.util.Resource
 import com.example.nexthelp.domain.models.User
 import com.example.nexthelp.domain.repository.AuthRepository
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +28,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val repository: AuthRepository
+    private val repository: AuthRepository,
+    private val appConfig: AppConfig,
+    private val credentialManager: CredentialManager
 ) : ViewModel() {
 
     private val _loginState = MutableStateFlow<Resource<User>?>(null)
@@ -71,9 +82,55 @@ class AuthViewModel @Inject constructor(
     }
 
     fun loginWithGoogle(context: Context) {
-        // Requires google-services.json + a configured web client ID.
         viewModelScope.launch {
-            _eventFlow.emit(UiEvent.ShowSnackbar("Google Sign-In is not configured yet."))
+            if (!appConfig.isGoogleSignInConfigured) {
+                _eventFlow.emit(
+                    UiEvent.ShowSnackbar(
+                        "Google Sign-In is not configured. Add nexthelp.webClientId to local.properties."
+                    )
+                )
+                return@launch
+            }
+
+            _loginState.value = Resource.Loading()
+            try {
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setServerClientId(appConfig.webClientId!!)
+                    .setFilterByAuthorizedAccounts(false)
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val response = credentialManager.getCredential(context, request)
+                val idToken = GoogleIdTokenCredential.createFrom(response.credential.data).idToken
+                when (val result = repository.loginWithGoogle(idToken)) {
+                    is Resource.Success -> {
+                        _loginState.value = result
+                        _eventFlow.emit(UiEvent.LoginSuccess(result.data!!))
+                    }
+                    is Resource.Error -> {
+                        _loginState.value = result
+                        _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Google sign-in failed"))
+                    }
+                    else -> Unit
+                }
+            } catch (e: GetCredentialCancellationException) {
+                // User dismissed the account picker — not an error worth surfacing.
+                _loginState.value = null
+            } catch (e: NoCredentialException) {
+                _loginState.value = null
+                _eventFlow.emit(UiEvent.ShowSnackbar("No Google account found on this device."))
+            } catch (e: GoogleIdTokenParsingException) {
+                _loginState.value = null
+                _eventFlow.emit(UiEvent.ShowSnackbar("Could not read the Google credential. Please try again."))
+            } catch (e: GetCredentialException) {
+                _loginState.value = null
+                _eventFlow.emit(UiEvent.ShowSnackbar(e.localizedMessage ?: "Google sign-in failed. Please try again."))
+            } catch (e: Exception) {
+                _loginState.value = null
+                _eventFlow.emit(UiEvent.ShowSnackbar(e.localizedMessage ?: "Google sign-in failed. Please try again."))
+            }
         }
     }
 
@@ -101,6 +158,7 @@ class AuthViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch {
             repository.logout()
+            runCatching { credentialManager.clearCredentialState(ClearCredentialStateRequest()) }
         }
     }
 

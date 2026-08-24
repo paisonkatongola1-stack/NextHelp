@@ -35,6 +35,7 @@ android {
         buildConfigField("String", "FIREBASE_PROJECT_ID", secret("nexthelp.firebase.projectId"))
         buildConfigField("String", "FIREBASE_STORAGE_BUCKET", secret("nexthelp.firebase.storageBucket"))
         buildConfigField("String", "ADMIN_EMAILS", secret("nexthelp.adminEmails"))
+        buildConfigField("String", "WEB_CLIENT_ID", secret("nexthelp.webClientId"))
     }
 
     buildTypes {

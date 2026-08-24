@@ -14,6 +14,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -219,7 +220,28 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun loginWithGoogle(idToken: String): Resource<User> {
-        return Resource.Error("Google Sign-In is not configured yet.")
+        if (idToken.isBlank()) return Resource.Error("Missing Google credential. Please try again.")
+
+        return try {
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            val result = firebaseAuth.signInWithCredential(credential).await()
+            val fbUser = result.user ?: return Resource.Error("Sign-in failed. Please try again.")
+            devSessionActive = false
+
+            // First-time Google users get a profile document created for them.
+            val existingDoc = firestore.collection(USERS_COLLECTION).document(fbUser.uid).get().await()
+            if (!existingDoc.exists()) {
+                firestore.collection(USERS_COLLECTION).document(fbUser.uid)
+                    .set(fbUser.toDomainUser().copy(createdAt = System.currentTimeMillis()))
+                    .await()
+            }
+
+            sessionManager.update(fbUser.toDomainUser())
+            observeUserProfile(fbUser.uid)
+            Resource.Success(fbUser.toDomainUser())
+        } catch (e: Exception) {
+            Resource.Error(e.friendlyMessage(fallback = "Google sign-in failed. Please try again."))
+        }
     }
 
     override suspend fun sendPasswordResetEmail(email: String): Resource<Unit> {
