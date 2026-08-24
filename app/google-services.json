@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "599443092163",
+    "project_id": "nexthelp-af2c5",
+    "storage_bucket": "nexthelp-af2c5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:599443092163:android:da77e393f7055cf7d46876",
+        "android_client_info": {
+          "package_name": "com.example.nexthelp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsCwB5VMWjTkf2rs2gpiTUEqiZ1HnMXUI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
