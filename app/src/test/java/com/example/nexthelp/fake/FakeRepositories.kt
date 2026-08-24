@@ -113,3 +113,14 @@ class FakeAuthRepository : AuthRepository {
 
     override suspend fun logout() = Unit
 }
+
+class FakeAttachmentUploader : com.example.nexthelp.domain.repository.AttachmentUploader {
+
+    val uploaded = mutableListOf<Pair<String, android.net.Uri>>()
+    var nextResult: Resource<String> = Resource.Success("https://storage.example.com/fake.jpg")
+
+    override suspend fun upload(ticketId: String, localUri: android.net.Uri): Resource<String> {
+        uploaded += ticketId to localUri
+        return nextResult
+    }
+}

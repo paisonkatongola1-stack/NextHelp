@@ -7,6 +7,7 @@ import com.example.nexthelp.domain.models.TicketPriority
 import com.example.nexthelp.domain.models.TicketStatus
 import com.example.nexthelp.domain.models.User
 import com.example.nexthelp.domain.repository.TicketRepository
+import com.example.nexthelp.fake.FakeAttachmentUploader
 import com.example.nexthelp.fake.FakeAuthRepository
 import com.example.nexthelp.fake.FakeTicketRepository
 import com.example.nexthelp.util.MainDispatcherRule
@@ -29,7 +30,7 @@ class TicketViewModelTest {
     private val repo = FakeTicketRepository()
     private val auth = FakeAuthRepository()
 
-    private fun viewModel() = TicketViewModel(repo, auth)
+    private fun viewModel() = TicketViewModel(repo, auth, FakeAttachmentUploader())
 
     private fun ticket(
         id: String,

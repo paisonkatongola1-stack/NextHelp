@@ -1,5 +1,6 @@
 package com.example.nexthelp.presentation.tickets.details
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,17 +9,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.example.nexthelp.core.ui.components.StatusChip
 import com.example.nexthelp.core.ui.components.TicketTimeline
 import com.example.nexthelp.core.ui.components.displayLabel
@@ -44,6 +53,18 @@ fun TicketDetailsScreen(
     val supportAgents by viewModel.supportAgents.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle(initialValue = null)
     var commentText by remember { mutableStateOf("") }
+    var pendingImage by remember { mutableStateOf<Uri?>(null) }
+    val isUploadingAttachment by viewModel.isUploadingAttachment.collectAsStateWithLifecycle()
+
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri -> if (uri != null) pendingImage = uri }
+
+    fun sendComment() {
+        viewModel.addComment(ticketId, commentText, pendingImage)
+        commentText = ""
+        pendingImage = null
+    }
 
     val canManageAssignment = currentUser?.canHandleTickets == true
 
@@ -126,7 +147,7 @@ fun TicketDetailsScreen(
                                 }
                             } else {
                                 items(comments, key = { it.id }) { comment ->
-                                    CommentItem(comment.authorName, comment.content, comment.timestamp)
+                                    CommentItem(comment.authorName, comment.content, comment.timestamp, comment.imageUrl)
                                 }
                             }
                         }
@@ -134,30 +155,70 @@ fun TicketDetailsScreen(
 
                     // Comment Input
                     Surface(tonalElevation = 2.dp) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = commentText,
-                                onValueChange = { commentText = it },
-                                placeholder = { Text("Add a comment...") },
-                                modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            IconButton(
-                                onClick = {
-                                    if (commentText.isNotBlank()) {
-                                        viewModel.addComment(ticketId, commentText)
-                                        commentText = ""
+                        Column {
+                            if (pendingImage != null) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    AsyncImage(
+                                        model = pendingImage,
+                                        contentDescription = "Selected attachment",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .clip(MaterialTheme.shapes.small)
+                                    )
+                                    Spacer(Modifier.weight(1f))
+                                    if (isUploadingAttachment) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Uploading…", style = MaterialTheme.typography.bodySmall)
                                     }
-                                },
-                                enabled = commentText.isNotBlank()
+                                    IconButton(onClick = { pendingImage = null }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Remove attachment")
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                                IconButton(
+                                    onClick = {
+                                        imagePicker.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    enabled = !isUploadingAttachment
+                                ) {
+                                    Icon(
+                                        Icons.Default.AddPhotoAlternate,
+                                        contentDescription = "Attach image",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                OutlinedTextField(
+                                    value = commentText,
+                                    onValueChange = { commentText = it },
+                                    placeholder = { Text("Add a comment...") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = MaterialTheme.shapes.medium
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                IconButton(
+                                    onClick = { sendComment() },
+                                    enabled = (commentText.isNotBlank() || pendingImage != null) && !isUploadingAttachment
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                                }
                             }
                         }
                     }
@@ -369,13 +430,28 @@ fun DetailRow(label: String, value: String) {
 }
 
 @Composable
-fun CommentItem(author: String, content: String, timestamp: Long) {
+fun CommentItem(author: String, content: String, timestamp: Long, imageUrl: String? = null) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(author, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             Text(formatDate(timestamp), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }
-        Text(content, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+        if (content.isNotBlank()) {
+            Text(content, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+        }
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = "Attachment from $author",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .fillMaxWidth()
+                    .heightIn(max = 260.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+        }
         HorizontalDivider(Modifier.padding(top = 8.dp), thickness = 0.5.dp)
     }
 }

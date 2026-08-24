@@ -4,6 +4,8 @@ import com.example.nexthelp.core.util.AppConfig
 import com.example.nexthelp.core.util.ApplicationScope
 import com.example.nexthelp.data.repository.AuthRepositoryImpl
 import com.example.nexthelp.data.repository.TicketRepositoryImpl
+import com.example.nexthelp.data.tickets.TicketAttachmentUploader
+import com.example.nexthelp.domain.repository.AttachmentUploader
 import com.example.nexthelp.domain.repository.AuthRepository
 import com.example.nexthelp.domain.repository.TicketRepository
 import androidx.credentials.CredentialManager
@@ -52,6 +54,12 @@ object AppModule {
     fun provideAuthRepository(
         impl: AuthRepositoryImpl
     ): AuthRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideAttachmentUploader(
+        impl: TicketAttachmentUploader
+    ): AttachmentUploader = impl
 
     @Provides
     @Singleton

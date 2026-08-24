@@ -1,5 +1,6 @@
 package com.example.nexthelp.presentation.tickets
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.nexthelp.core.util.Resource
@@ -8,6 +9,7 @@ import com.example.nexthelp.domain.models.TicketComment
 import com.example.nexthelp.domain.models.TicketPriority
 import com.example.nexthelp.domain.models.TicketStatus
 import com.example.nexthelp.domain.models.User
+import com.example.nexthelp.domain.repository.AttachmentUploader
 import com.example.nexthelp.domain.repository.AuthRepository
 import com.example.nexthelp.domain.repository.TicketRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,7 +43,8 @@ data class TicketStats(
 @HiltViewModel
 class TicketViewModel @Inject constructor(
     private val ticketRepository: TicketRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val attachmentUploader: AttachmentUploader
 ) : ViewModel() {
 
     private val refreshKey = MutableStateFlow(0)
@@ -49,6 +52,9 @@ class TicketViewModel @Inject constructor(
 
     /** True only during an explicit user-triggered refresh (pull-to-refresh, retry). */
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private val _isUploadingAttachment = MutableStateFlow(false)
+    val isUploadingAttachment: StateFlow<Boolean> = _isUploadingAttachment.asStateFlow()
 
     val ticketsState: StateFlow<Resource<List<Ticket>>> = refreshKey
         .flatMapLatest { ticketRepository.getTickets() }
@@ -306,14 +312,31 @@ class TicketViewModel @Inject constructor(
         }
     }
 
-    fun addComment(ticketId: String, content: String) {
+    fun addComment(ticketId: String, content: String, imageUri: Uri? = null) {
         viewModelScope.launch {
             val user = authRepository.currentUser.first()
+            val imageUrl = imageUri?.let { uri ->
+                _isUploadingAttachment.value = true
+                try {
+                    when (val result = attachmentUploader.upload(ticketId, uri)) {
+                        is Resource.Success -> result.data
+                        is Resource.Error -> {
+                            _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Upload failed"))
+                            return@launch
+                        }
+                        else -> null
+                    }
+                } finally {
+                    _isUploadingAttachment.value = false
+                }
+            }
+            if (content.isBlank() && imageUrl == null) return@launch
             val comment = TicketComment(
                 id = UUID.randomUUID().toString(),
                 authorId = user?.id,
                 authorName = user?.fullName?.ifBlank { null } ?: "You",
-                content = content.trim()
+                content = content.trim(),
+                imageUrl = imageUrl
             )
             when (val result = ticketRepository.addComment(ticketId, comment)) {
                 is Resource.Error ->

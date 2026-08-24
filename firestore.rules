@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAgent() {
+      return isSignedIn() &&
+        userRole() in ['SUPPORT_AGENT', 'SUPPORT_MANAGER', 'ADMIN'];
+    }
+
+    // ---- Users -------------------------------------------------------------
+    // Profiles are readable by any signed-in user (agent directory, avatars).
+    // Writes are restricted to the profile owner.
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'fullName', 'bio', 'phoneNumber', 'location',
+          'profileImageUrl', 'coverImageUrl'
+        ]);
+      allow delete: if false;
+    }
+
+    // ---- Tickets -----------------------------------------------------------
+    match /tickets/{ticketId} {
+      // Creators see their own tickets; support roles see everything.
+      allow read: if isSignedIn() &&
+        (resource.data.creatorId == request.auth.uid || isAgent());
+
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid;
+
+      // Status changes, assignment, and timestamp bumps.
+      allow update: if isSignedIn() &&
+        (resource.data.creatorId == request.auth.uid || isAgent())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'assignedAgentId', 'assignedAgentName',
+          'updatedAt', 'updatedBy', 'resolvedAt', 'closedAt'
+        ]);
+
+      allow delete: if isAgent();
+
+      // ---- Comments --------------------------------------------------------
+      // Readable by any signed-in user so cross-ticket activity feeds and
+      // collectionGroup queries keep working.
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.content is string
+          && request.resource.data.timestamp is number;
+        allow update, delete: if isSignedIn() &&
+          (resource.data.authorId == request.auth.uid || isAgent());
+      }
+    }
+
+    // Collection-group fallback for comments queries.
+    match /{path=**}/comments/{commentId} {
+      allow read: if isSignedIn();
+    }
+  }
+}

@@ -51,7 +51,8 @@ data class TicketComment(
     val authorId: String? = null,
     val authorName: String = "",
     val content: String = "",
+    val imageUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 ) {
-    constructor() : this("", null, "", "", 0L)
+    constructor() : this("", null, "", "", null, 0L)
 }
