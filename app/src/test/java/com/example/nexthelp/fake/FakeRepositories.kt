@@ -23,6 +23,8 @@ class FakeTicketRepository : TicketRepository {
     val createdTickets = mutableListOf<Ticket>()
     val statusUpdates = mutableListOf<Pair<String, String>>()
     val addedComments = mutableListOf<Pair<String, TicketComment>>()
+    val assignments = mutableListOf<Triple<String, String?, String?>>()
+    val assignableAgentsFlow = MutableStateFlow<Resource<List<User>>>(Resource.Success(emptyList()))
 
     fun emitTickets(tickets: List<Ticket>) {
         ticketsFlow.value = Resource.Success(tickets)
@@ -62,6 +64,17 @@ class FakeTicketRepository : TicketRepository {
         addedComments += ticketId to comment
         return Resource.Success(Unit)
     }
+
+    override suspend fun assignTicket(
+        ticketId: String,
+        agentId: String?,
+        agentName: String?
+    ): Resource<Unit> {
+        assignments += Triple(ticketId, agentId, agentName)
+        return Resource.Success(Unit)
+    }
+
+    override fun getSupportAgents(): Flow<Resource<List<User>>> = assignableAgentsFlow
 }
 
 class FakeAuthRepository : AuthRepository {

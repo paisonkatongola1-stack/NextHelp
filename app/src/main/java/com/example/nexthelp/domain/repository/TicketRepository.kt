@@ -3,6 +3,7 @@ package com.example.nexthelp.domain.repository
 import com.example.nexthelp.core.util.Resource
 import com.example.nexthelp.domain.models.Ticket
 import com.example.nexthelp.domain.models.TicketComment
+import com.example.nexthelp.domain.models.User
 import kotlinx.coroutines.flow.Flow
 
 interface TicketRepository {
@@ -34,6 +35,19 @@ interface TicketRepository {
     suspend fun createTicket(ticket: Ticket): Resource<Unit>
     suspend fun updateTicketStatus(ticketId: String, status: String): Resource<Unit>
     suspend fun addComment(ticketId: String, comment: TicketComment): Resource<Unit>
+
+    /**
+     * Assigns [agentId] to a ticket (or unassigns when null). The agent's name is
+     * denormalized onto the ticket so requesters can see it without extra reads.
+     */
+    suspend fun assignTicket(
+        ticketId: String,
+        agentId: String?,
+        agentName: String?
+    ): Resource<Unit>
+
+    /** Real-time list of users allowed to handle tickets (agents and up). */
+    fun getSupportAgents(): Flow<Resource<List<User>>>
 
     companion object {
         const val DEFAULT_PAGE_SIZE = 25

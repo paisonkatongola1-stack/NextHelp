@@ -7,6 +7,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +26,8 @@ import com.example.nexthelp.core.ui.components.labelColor
 import com.example.nexthelp.core.util.Resource
 import com.example.nexthelp.domain.models.Ticket
 import com.example.nexthelp.domain.models.TicketPriority
+import com.example.nexthelp.domain.models.User
+import com.example.nexthelp.domain.models.canHandleTickets
 import com.example.nexthelp.presentation.tickets.TicketViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,11 +41,16 @@ fun TicketDetailsScreen(
 ) {
     val state by viewModel.ticketDetailsState.collectAsStateWithLifecycle()
     val commentsState by viewModel.commentsState.collectAsStateWithLifecycle()
+    val supportAgents by viewModel.supportAgents.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle(initialValue = null)
     var commentText by remember { mutableStateOf("") }
+
+    val canManageAssignment = currentUser?.canHandleTickets == true
 
     LaunchedEffect(ticketId) {
         viewModel.loadTicketDetails(ticketId)
         viewModel.observeComments(ticketId)
+        viewModel.observeSupportAgents()
     }
 
     Scaffold(
@@ -81,6 +91,16 @@ fun TicketDetailsScreen(
                     ) {
                         item { TicketHeader(ticket) }
                         item { TicketTimelineCard(ticket.status) }
+                        item {
+                            AssignmentCard(
+                                ticket = ticket,
+                                canManage = canManageAssignment,
+                                agentsState = supportAgents,
+                                onAssign = { agent ->
+                                    viewModel.assignTicket(ticket.id, agent?.id, agent?.fullName)
+                                }
+                            )
+                        }
                         item { Text("Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
                         when (commentsState) {
                             is Resource.Loading -> item {
@@ -214,6 +234,128 @@ fun TicketTimelineCard(status: com.example.nexthelp.domain.models.TicketStatus) 
             )
             Spacer(Modifier.height(16.dp))
             TicketTimeline(status = status)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AssignmentCard(
+    ticket: Ticket,
+    canManage: Boolean,
+    agentsState: Resource<List<User>>,
+    onAssign: (User?) -> Unit
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val agents = (agentsState as? Resource.Success)?.data.orEmpty()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "Assignment",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(12.dp))
+
+            if (!canManage) {
+                DetailRow("Assigned to", ticket.assignedAgentName ?: "Unassigned")
+                return@Column
+            }
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.AccountCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            ticket.assignedAgentName ?: "Unassigned",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            if (ticket.assignedAgentId == null) "Pick an agent to take this ticket"
+                            else "Handling this ticket",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+
+                Box {
+                    OutlinedButton(onClick = { menuExpanded = true }) {
+                        Text(if (ticket.assignedAgentId == null) "Assign" else "Change")
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose agent")
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        when (agentsState) {
+                            is Resource.Loading -> DropdownMenuItem(
+                                text = { Text("Loading agents…") },
+                                onClick = {}
+                            )
+                            is Resource.Error -> DropdownMenuItem(
+                                text = { Text(agentsState.message ?: "Could not load agents") },
+                                onClick = {}
+                            )
+                            else -> {
+                                if (agents.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("No agents available") },
+                                        onClick = {}
+                                    )
+                                }
+                                agents.forEach { agent ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                agent.fullName +
+                                                    if (agent.id == ticket.assignedAgentId) "  ✓" else ""
+                                            )
+                                        },
+                                        onClick = {
+                                            menuExpanded = false
+                                            if (agent.id != ticket.assignedAgentId) onAssign(agent)
+                                        }
+                                    )
+                                }
+                                if (ticket.assignedAgentId != null) {
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Unassign", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.PersonOff,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        onClick = {
+                                            menuExpanded = false
+                                            onAssign(null)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -4,7 +4,10 @@ import com.example.nexthelp.core.util.Resource
 import com.example.nexthelp.data.session.SessionManager
 import com.example.nexthelp.domain.models.Ticket
 import com.example.nexthelp.domain.models.TicketComment
+import com.example.nexthelp.domain.models.TicketStatus
+import com.example.nexthelp.domain.models.User
 import com.example.nexthelp.domain.models.canHandleTickets
+import com.example.nexthelp.domain.models.UserRole
 import com.example.nexthelp.domain.repository.TicketRepository
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -167,9 +170,56 @@ class TicketRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun assignTicket(
+        ticketId: String,
+        agentId: String?,
+        agentName: String?
+    ): Resource<Unit> {
+        return try {
+            val updates = mutableMapOf<String, Any?>(
+                ASSIGNED_AGENT_ID to agentId,
+                ASSIGNED_AGENT_NAME to agentName,
+                "updatedAt" to System.currentTimeMillis()
+            )
+            // Keep status consistent with the workflow: assigning an untouched
+            // ticket moves it forward; unassigning an ASSIGNED ticket reopens it.
+            val doc = firestore.collection(TICKETS).document(ticketId).get().await()
+            val currentStatus = doc.getString("status")
+            if (agentId != null && currentStatus in listOf(TicketStatus.OPEN.name, TicketStatus.REOPENED.name)) {
+                updates["status"] = TicketStatus.ASSIGNED.name
+            } else if (agentId == null && currentStatus == TicketStatus.ASSIGNED.name) {
+                updates["status"] = TicketStatus.OPEN.name
+            }
+            firestore.collection(TICKETS).document(ticketId).update(updates).await()
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Failed to assign ticket")
+        }
+    }
+
+    override fun getSupportAgents(): Flow<Resource<List<User>>> = callbackFlow {
+        trySend(Resource.Loading())
+        val listener = firestore.collection(USERS)
+            .whereIn("role", listOf(UserRole.SUPPORT_AGENT.name, UserRole.SUPPORT_MANAGER.name, UserRole.ADMIN.name))
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Resource.Error(error.localizedMessage ?: "Failed to load agents"))
+                    return@addSnapshotListener
+                }
+                val agents = snapshot?.toObjects(User::class.java)
+                    ?.sortedBy { it.fullName.lowercase() }
+                    ?: emptyList()
+                trySend(Resource.Success(agents))
+            }
+        awaitClose { listener.remove() }
+    }
+
     companion object {
         private const val TICKETS = "tickets"
         private const val COMMENTS = "comments"
+        private const val USERS = "users"
         private const val CREATOR_ID = "creatorId"
+        private const val ASSIGNED_AGENT_ID = "assignedAgentId"
+        private const val ASSIGNED_AGENT_NAME = "assignedAgentName"
     }
 }

@@ -57,6 +57,9 @@ domain interfaces and talks to Firebase.
    nexthelp.firebase.storageBucket=...
    nexthelp.adminEmails=a@example.com,b@example.com
 
+   # Google Sign-In (OAuth 2.0 *Web* client ID from Google Cloud console)
+   nexthelp.webClientId=...
+
    # Debug-only convenience admin login
    nexthelp.dev.adminEmail=...
    nexthelp.dev.adminPassword=...
@@ -66,7 +69,11 @@ domain interfaces and talks to Firebase.
    `google-services` plugin; the app falls back to manual init from BuildConfig
    when it is absent.
 
-3. Run: `./gradlew :app:installDebug`
+3. For Google Sign-In, also create an **Android OAuth client** in the same
+   GCP project with the app's `applicationId` and your debug/release SHA-1
+   (`./gradlew signingReport`), then enable Google as a sign-in provider in
+   the Firebase console.
+4. Run: `./gradlew :app:installDebug`
 
 ## Firebase notes
 

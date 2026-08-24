@@ -34,6 +34,7 @@ data class Ticket(
     val priority: TicketPriority = TicketPriority.LOW,
     val status: TicketStatus = TicketStatus.OPEN,
     val assignedAgentId: String? = null,
+    val assignedAgentName: String? = null,
     val teamId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),

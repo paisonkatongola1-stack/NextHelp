@@ -7,6 +7,7 @@ import com.example.nexthelp.domain.models.Ticket
 import com.example.nexthelp.domain.models.TicketComment
 import com.example.nexthelp.domain.models.TicketPriority
 import com.example.nexthelp.domain.models.TicketStatus
+import com.example.nexthelp.domain.models.User
 import com.example.nexthelp.domain.repository.AuthRepository
 import com.example.nexthelp.domain.repository.TicketRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -139,6 +140,35 @@ class TicketViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = TicketStats()
         )
+
+    // ---- Agent assignment ---------------------------------------------------
+
+    private val _supportAgents = MutableStateFlow<Resource<List<User>>>(Resource.Loading())
+    val supportAgents: StateFlow<Resource<List<User>>> = _supportAgents.asStateFlow()
+
+    /** Starts observing the list of users allowed to handle tickets. */
+    fun observeSupportAgents() {
+        viewModelScope.launch {
+            ticketRepository.getSupportAgents().collect { state ->
+                _supportAgents.value = state
+            }
+        }
+    }
+
+    /**
+     * Assigns [agentId] to the ticket (or unassigns with null), keeping status
+     * consistent: OPEN/REOPENED → ASSIGNED on assign; ASSIGNED → OPEN on unassign.
+     */
+    fun assignTicket(ticketId: String, agentId: String?, agentName: String?) {
+        viewModelScope.launch {
+            when (val result = ticketRepository.assignTicket(ticketId, agentId, agentName)) {
+                is Resource.Error ->
+                    _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Failed to update assignment"))
+                else -> Unit
+            }
+        }
+    }
+
 
     // ---- Details ----------------------------------------------------------
 
