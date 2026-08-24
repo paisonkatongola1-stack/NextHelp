@@ -15,10 +15,16 @@ class NextHelpApplication : Application() {
     @Inject lateinit var fcmTokenManager: FcmTokenManager
 
     override fun onCreate() {
+        initFirebase()
         super.onCreate()
 
-        // Fallback manual initialization for when google-services.json is not present.
-        // Values are injected from local.properties via BuildConfig, never hardcoded.
+        TicketNotifications.ensureChannel(this)
+        fcmTokenManager.start()
+    }
+
+    // Fallback manual initialization for when google-services.json is not present.
+    // Values are injected from local.properties via BuildConfig, never hardcoded.
+    private fun initFirebase() {
         try {
             FirebaseApp.getInstance()
         } catch (e: IllegalStateException) {
@@ -31,8 +37,5 @@ class NextHelpApplication : Application() {
                 .build()
             FirebaseApp.initializeApp(this, options)
         }
-
-        TicketNotifications.ensureChannel(this)
-        fcmTokenManager.start()
     }
 }
