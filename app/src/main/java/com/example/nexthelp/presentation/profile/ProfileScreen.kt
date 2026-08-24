@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -387,10 +388,11 @@ fun ProfileScreen(
                     )
                 }
 
+                val locale = LocalConfiguration.current.locales[0]
                 val metaLine = buildList {
                     user?.location?.takeIf { it.isNotBlank() }?.let { add(it) }
                     user?.createdAt?.takeIf { it > 0L }?.let {
-                        add("Joined " + SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(it)))
+                        add("Joined " + SimpleDateFormat("MMMM yyyy", locale).format(Date(it)))
                     }
                 }.joinToString("  ·  ")
                 if (metaLine.isNotBlank()) {
