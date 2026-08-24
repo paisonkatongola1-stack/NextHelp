@@ -1,5 +1,7 @@
 package com.example.nexthelp.domain.models
 
+import androidx.annotation.Keep
+
 enum class TicketPriority {
     LOW,
     MEDIUM,
@@ -17,6 +19,7 @@ enum class TicketStatus {
     REOPENED
 }
 
+@Keep
 data class Ticket(
     val id: String = "",
     val ticketNumber: String = "",
@@ -32,7 +35,6 @@ data class Ticket(
     val status: TicketStatus = TicketStatus.OPEN,
     val assignedAgentId: String? = null,
     val teamId: String? = null,
-    val comments: List<TicketComment> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val resolvedAt: Long? = null,
@@ -42,6 +44,7 @@ data class Ticket(
     constructor() : this("", "", "", "", "", "", "", "", "", "", TicketPriority.LOW, TicketStatus.OPEN)
 }
 
+@Keep
 data class TicketComment(
     val id: String = "",
     val authorName: String = "",

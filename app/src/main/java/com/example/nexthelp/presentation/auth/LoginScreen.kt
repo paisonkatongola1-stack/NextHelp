@@ -1,6 +1,5 @@
 package com.example.nexthelp.presentation.auth
 
-import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -20,17 +19,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nexthelp.core.ui.components.NextHelpLogo
 import com.example.nexthelp.core.util.Resource
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import com.example.nexthelp.domain.models.UserRole
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.ui.text.input.VisualTransformation
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: (role: UserRole) -> Unit,
+    onLoginSuccess: () -> Unit,
     onNavigateToRegister: () -> Unit,
     onNavigateToForgotPassword: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
@@ -38,21 +37,23 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    val loginState by viewModel.loginState
+    val loginState by viewModel.loginState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
     val contentAlpha = remember { Animatable(0f) }
     val contentScale = remember { Animatable(0.9f) }
 
-    LaunchedEffect(key1 = true) {
+    LaunchedEffect(Unit) {
         contentAlpha.animateTo(1f, tween(800))
         contentScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-        
+    }
+
+    LaunchedEffect(Unit) {
         viewModel.eventFlow.collectLatest { event ->
             when (event) {
                 is AuthViewModel.UiEvent.LoginSuccess -> {
-                    onLoginSuccess(event.user.role)
+                    onLoginSuccess()
                 }
                 is AuthViewModel.UiEvent.ShowSnackbar -> {
                     snackbarHostState.showSnackbar(event.message)
@@ -137,10 +138,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Button(
-                    onClick = { 
-                        Log.d("LoginScreen", "Login clicked. Email='${email.trim()}'")
-                        viewModel.login(email, password) 
-                    },
+                    onClick = { viewModel.login(email, password) },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = MaterialTheme.shapes.medium,
                     enabled = loginState !is Resource.Loading

@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nexthelp.core.util.Resource
 import kotlinx.coroutines.flow.collectLatest
 
@@ -21,10 +22,10 @@ fun ForgotPasswordScreen(
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     var email by remember { mutableStateOf("") }
-    val resetState by viewModel.resetPasswordState
+    val resetState by viewModel.resetPasswordState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(key1 = true) {
+    LaunchedEffect(Unit) {
         viewModel.eventFlow.collectLatest { event ->
             if (event is AuthViewModel.UiEvent.ShowSnackbar) {
                 snackbarHostState.showSnackbar(event.message)

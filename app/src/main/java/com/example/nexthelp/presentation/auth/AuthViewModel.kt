@@ -1,10 +1,7 @@
 package com.example.nexthelp.presentation.auth
 
 import android.content.Context
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.nexthelp.core.util.Resource
@@ -12,7 +9,11 @@ import com.example.nexthelp.domain.models.User
 import com.example.nexthelp.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,29 +22,33 @@ class AuthViewModel @Inject constructor(
     private val repository: AuthRepository
 ) : ViewModel() {
 
-    private val _loginState = mutableStateOf<Resource<User>?>(null)
-    val loginState: State<Resource<User>?> = _loginState
+    private val _loginState = MutableStateFlow<Resource<User>?>(null)
+    val loginState: StateFlow<Resource<User>?> = _loginState.asStateFlow()
 
-    private val _registerState = mutableStateOf<Resource<User>?>(null)
-    val registerState: State<Resource<User>?> = _registerState
+    private val _registerState = MutableStateFlow<Resource<User>?>(null)
+    val registerState: StateFlow<Resource<User>?> = _registerState.asStateFlow()
 
-    private val _resetPasswordState = mutableStateOf<Resource<Unit>?>(null)
-    val resetPasswordState: State<Resource<Unit>?> = _resetPasswordState
+    private val _resetPasswordState = MutableStateFlow<Resource<Unit>?>(null)
+    val resetPasswordState: StateFlow<Resource<Unit>?> = _resetPasswordState.asStateFlow()
 
-    val currentUser = repository.currentUser
+    val currentUser get() = repository.currentUser
 
-    private val _eventFlow = MutableSharedFlow<UiEvent>()
-    val eventFlow = _eventFlow.asSharedFlow()
+    private val _eventFlow = MutableSharedFlow<UiEvent>(extraBufferCapacity = 1)
+    val eventFlow: SharedFlow<UiEvent> = _eventFlow.asSharedFlow()
 
     fun login(email: String, pass: String) {
         viewModelScope.launch {
             _loginState.value = Resource.Loading()
-            val result = repository.loginWithEmail(email, pass)
-            _loginState.value = result
-            if (result is Resource.Success) {
-                _eventFlow.emit(UiEvent.LoginSuccess(result.data!!))
-            } else if (result is Resource.Error) {
-                _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Login failed"))
+            when (val result = repository.loginWithEmail(email, pass)) {
+                is Resource.Success -> {
+                    _loginState.value = result
+                    _eventFlow.emit(UiEvent.LoginSuccess(result.data!!))
+                }
+                is Resource.Error -> {
+                    _loginState.value = result
+                    _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Login failed"))
+                }
+                else -> Unit
             }
         }
     }
@@ -51,21 +56,24 @@ class AuthViewModel @Inject constructor(
     fun register(email: String, fullName: String, pass: String) {
         viewModelScope.launch {
             _registerState.value = Resource.Loading()
-            val result = repository.registerWithEmail(email, fullName, pass)
-            _registerState.value = result
-            if (result is Resource.Success) {
-                _eventFlow.emit(UiEvent.RegisterSuccess)
-            } else if (result is Resource.Error) {
-                _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Registration failed"))
+            when (val result = repository.registerWithEmail(email, fullName, pass)) {
+                is Resource.Success -> {
+                    _registerState.value = result
+                    _eventFlow.emit(UiEvent.RegisterSuccess)
+                }
+                is Resource.Error -> {
+                    _registerState.value = result
+                    _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Registration failed"))
+                }
+                else -> Unit
             }
         }
     }
 
     fun loginWithGoogle(context: Context) {
-        // Placeholder for Google Login
-        // In a real app with google-services.json, we'd use Credential Manager here
+        // Requires google-services.json + a configured web client ID.
         viewModelScope.launch {
-            _eventFlow.emit(UiEvent.ShowSnackbar("Google Login requires google-services.json setup"))
+            _eventFlow.emit(UiEvent.ShowSnackbar("Google Sign-In is not configured yet."))
         }
     }
 
@@ -76,12 +84,16 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
             _resetPasswordState.value = Resource.Loading()
-            val result = repository.sendPasswordResetEmail(email)
-            _resetPasswordState.value = result
-            if (result is Resource.Success) {
-                _eventFlow.emit(UiEvent.ShowSnackbar("Reset email sent! Check your inbox."))
-            } else if (result is Resource.Error) {
-                _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Failed to send reset email"))
+            when (val result = repository.sendPasswordResetEmail(email)) {
+                is Resource.Success -> {
+                    _resetPasswordState.value = result
+                    _eventFlow.emit(UiEvent.ShowSnackbar("Reset email sent! Check your inbox."))
+                }
+                is Resource.Error -> {
+                    _resetPasswordState.value = result
+                    _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Failed to send reset email"))
+                }
+                else -> Unit
             }
         }
     }
@@ -89,6 +101,12 @@ class AuthViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch {
             repository.logout()
+        }
+    }
+
+    fun updateDisplayName(fullName: String) {
+        viewModelScope.launch {
+            repository.updateDisplayName(fullName)
         }
     }
 

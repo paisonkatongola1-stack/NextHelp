@@ -38,11 +38,11 @@ class AppNavigationTest {
         // 4. Verify Home Dashboard
         composeTestRule.waitUntil(5000) {
             composeTestRule
-                .onAllNodes(androidx.compose.ui.test.hasText("Recent Tickets"))
+                .onAllNodes(androidx.compose.ui.test.hasText("My Tickets"))
                 .fetchSemanticsNodes().isNotEmpty()
         }
         
-        composeTestRule.onNodeWithText("Recent Tickets").assertIsDisplayed()
+        composeTestRule.onNodeWithText("My Tickets").assertIsDisplayed()
         composeTestRule.onNodeWithText("OPEN").assertIsDisplayed()
     }
 }

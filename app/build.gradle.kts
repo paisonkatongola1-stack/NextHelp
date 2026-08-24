@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,6 +8,13 @@ plugins {
     alias(libs.plugins.ksp)
     // alias(libs.plugins.google.services)
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) load(FileInputStream(file))
+}
+
+fun secret(key: String): String = "\"${localProperties.getProperty(key) ?: ""}\""
 
 android {
     namespace = "com.example.nexthelp"
@@ -18,12 +28,26 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Secrets live in local.properties (gitignored), never in source control.
+        buildConfigField("String", "FIREBASE_API_KEY", secret("nexthelp.firebase.apiKey"))
+        buildConfigField("String", "FIREBASE_APPLICATION_ID", secret("nexthelp.firebase.applicationId"))
+        buildConfigField("String", "FIREBASE_PROJECT_ID", secret("nexthelp.firebase.projectId"))
+        buildConfigField("String", "FIREBASE_STORAGE_BUCKET", secret("nexthelp.firebase.storageBucket"))
+        buildConfigField("String", "ADMIN_EMAILS", secret("nexthelp.adminEmails"))
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "DEV_ADMIN_EMAIL", secret("nexthelp.dev.adminEmail"))
+            buildConfigField("String", "DEV_ADMIN_PASSWORD", secret("nexthelp.dev.adminPassword"))
+        }
         release {
+            buildConfigField("String", "DEV_ADMIN_EMAIL", "\"\"")
+            buildConfigField("String", "DEV_ADMIN_PASSWORD", "\"\"")
+
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
@@ -35,7 +59,7 @@ android {
 
     buildFeatures {
         compose = true
-        viewBinding = true
+        buildConfig = true
     }
 
     dependenciesInfo {
@@ -55,12 +79,19 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.navigation.compose)
 
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.storage)
+
+    // Image loading
+    implementation(libs.coil.compose)
     implementation(libs.google.auth)
     implementation(libs.kotlinx.coroutines.play.services)
 
@@ -79,6 +110,7 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

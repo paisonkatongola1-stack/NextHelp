@@ -15,6 +15,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.nexthelp.core.ui.components.StatusChip
+import com.example.nexthelp.core.ui.components.TicketTimeline
+import com.example.nexthelp.core.ui.components.displayLabel
+import com.example.nexthelp.core.ui.components.labelColor
 import com.example.nexthelp.core.util.Resource
 import com.example.nexthelp.domain.models.Ticket
 import com.example.nexthelp.domain.models.TicketPriority
@@ -29,11 +34,13 @@ fun TicketDetailsScreen(
     onNavigateBack: () -> Unit,
     viewModel: TicketViewModel = hiltViewModel()
 ) {
-    val state by viewModel.ticketDetailsState
+    val state by viewModel.ticketDetailsState.collectAsStateWithLifecycle()
+    val commentsState by viewModel.commentsState.collectAsStateWithLifecycle()
     var commentText by remember { mutableStateOf("") }
 
-    LaunchedEffect(key1 = ticketId) {
-        viewModel.getTicketDetails(ticketId)
+    LaunchedEffect(ticketId) {
+        viewModel.loadTicketDetails(ticketId)
+        viewModel.observeComments(ticketId)
     }
 
     Scaffold(
@@ -61,6 +68,7 @@ fun TicketDetailsScreen(
             }
             is Resource.Success -> {
                 val ticket = resource.data!!
+                val comments = (commentsState as? Resource.Success)?.data.orEmpty()
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -72,9 +80,35 @@ fun TicketDetailsScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         item { TicketHeader(ticket) }
+                        item { TicketTimelineCard(ticket.status) }
                         item { Text("Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-                        items(ticket.comments) { comment ->
-                            CommentItem(comment.authorName, comment.content, comment.timestamp)
+                        when (commentsState) {
+                            is Resource.Loading -> item {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Text(
+                                        "Loading activity…",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
+                            else -> if (comments.isEmpty()) {
+                                item {
+                                    Text(
+                                        "No activity yet. Add a comment below.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            } else {
+                                items(comments, key = { it.id }) { comment ->
+                                    CommentItem(comment.authorName, comment.content, comment.timestamp)
+                                }
+                            }
                         }
                     }
 
@@ -120,19 +154,66 @@ fun TicketHeader(ticket: Ticket) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text("#${ticket.ticketNumber}", style = MaterialTheme.typography.labelSmall)
-                Badge { Text(ticket.status.name) }
+                StatusChip(ticket.status)
             }
-            Text(ticket.subject, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                ticket.subject,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp)
+            )
             Spacer(Modifier.height(8.dp))
             Text(ticket.description, style = MaterialTheme.typography.bodyMedium)
-            
+
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = ticket.priority.labelColor().copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = "${ticket.priority.displayLabel} priority",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = ticket.priority.labelColor()
+                    )
+                }
+            }
+
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
-            
+
             DetailRow("Requester", ticket.requesterName)
-            DetailRow("Priority", ticket.priority.name)
+            if (ticket.requesterLocation.isNotBlank()) {
+                DetailRow("Location", ticket.requesterLocation)
+            }
             DetailRow("Created", formatDate(ticket.createdAt))
+        }
+    }
+}
+
+@Composable
+fun TicketTimelineCard(status: com.example.nexthelp.domain.models.TicketStatus) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "Progress",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(16.dp))
+            TicketTimeline(status = status)
         }
     }
 }

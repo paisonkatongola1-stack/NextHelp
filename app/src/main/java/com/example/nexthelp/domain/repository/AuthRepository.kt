@@ -10,5 +10,14 @@ interface AuthRepository {
     suspend fun registerWithEmail(email: String, fullName: String, password: String): Resource<User>
     suspend fun loginWithGoogle(idToken: String): Resource<User>
     suspend fun sendPasswordResetEmail(email: String): Resource<Unit>
+    suspend fun updateDisplayName(fullName: String): Resource<Unit>
+
+    /** Updates the free-form profile details shown on the profile screen. */
+    suspend fun updateProfileDetails(
+        bio: String,
+        phoneNumber: String,
+        location: String
+    ): Resource<Unit>
+
     suspend fun logout()
 }
