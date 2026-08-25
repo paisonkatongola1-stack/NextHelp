@@ -1,4 +1,4 @@
-const CACHE = "nexthelp-v1";
+const CACHE = "nexthelp-v2";
 const SHELL = [
   "index.html",
   "styles.css",
@@ -7,6 +7,8 @@ const SHELL = [
   "manifest.webmanifest",
   "download.html"
 ];
+// Assets that must always be revalidated so users get code updates immediately.
+const NETWORK_FIRST = ["index.html", "app.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -50,6 +52,22 @@ self.addEventListener("fetch", (e) => {
   const cacheable =
     url.origin === self.location.origin || url.hostname.includes("gstatic.com");
   if (!cacheable) return;
+
+  const file = url.pathname.split("/").pop();
+  if (NETWORK_FIRST.includes(file)) {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
 
   e.respondWith(
     caches.match(e.request).then(

@@ -6,6 +6,8 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut,
   updateProfile
@@ -245,6 +247,7 @@ function friendlyAuthError(e) {
     "auth/weak-password": "Password must be at least 6 characters.",
     "auth/too-many-requests": "Too many attempts. Please wait a moment.",
     "auth/popup-closed-by-user": "Google sign-in was cancelled.",
+    "auth/unauthorized-domain": "This domain isn't allowed for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.",
     "auth/network-request-failed": "Network problem. Check your connection."
   };
   return map[code] || e?.message?.replace("Firebase:", "").trim() || "Something went wrong. Please try again.";
@@ -663,9 +666,35 @@ function renderAuth(root) {
     state.authBusy = true;
     state.authError = "";
     scheduleRender();
+    const provider = new GoogleAuthProvider();
+    // Installed PWAs (standalone mode) and in-app browsers always block popups —
+    // skip the doomed popup attempt and go straight to a full-page redirect.
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator?.standalone === true;
+    const inAppBrowser = /FBAV|FB_IAB|Instagram|Line|Snapchat|Twitter|musical_ly|TikTok|GSA|WebView/i.test(
+      navigator.userAgent
+    );
     try {
-      const provider = new GoogleAuthProvider();
-      const cred = await signInWithPopup(state.auth, provider);
+      if (standalone || inAppBrowser) {
+        await signInWithRedirect(state.auth, provider);
+        return;
+      }
+      let cred;
+      try {
+        cred = await signInWithPopup(state.auth, provider);
+      } catch (err) {
+        const code = err?.code || "";
+        const popupUnavailable =
+          code === "auth/popup-blocked" ||
+          code === "auth/popup-request-pending" ||
+          code === "auth/cancelled-popup-request" ||
+          code === "auth/operation-not-supported-in-this-environment";
+        if (!popupUnavailable) throw err;
+        // Mobile browsers block popups — finish sign-in with a full-page redirect instead.
+        await signInWithRedirect(state.auth, provider);
+        return;
+      }
       await ensureProfile(cred.user, cred.user.displayName);
     } catch (err) {
       state.authError = friendlyAuthError(err);
@@ -1702,6 +1731,14 @@ function render() {
 
 async function main() {
   if ("serviceWorker" in navigator && location.protocol === "https:") {
+    const hadOldController = !!navigator.serviceWorker.controller;
+    let reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (hadOldController && !reloadedForUpdate) {
+        reloadedForUpdate = true;
+        location.reload();
+      }
+    });
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
 
@@ -1714,6 +1751,12 @@ async function main() {
   const app = initializeApp(cfg);
   state.auth = getAuth(app);
   state.db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+
+  // Complete Google sign-in when returning from a signInWithRedirect fallback (mobile).
+  getRedirectResult(state.auth).catch((err) => {
+    state.authError = friendlyAuthError(err);
+    scheduleRender();
+  });
 
   onAuthStateChanged(state.auth, async (fbUser) => {
     const previousUid = state.fbUser?.uid;
