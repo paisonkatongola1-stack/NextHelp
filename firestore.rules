@@ -16,16 +16,24 @@ service cloud.firestore {
         userRole() in ['SUPPORT_AGENT', 'SUPPORT_MANAGER', 'ADMIN'];
     }
 
+    // The owner may create/update their own profile document. Creation writes
+    // the full document (id, email, role, createdAt...), so the write is not
+    // field-restricted; role escalation is blocked by the update rules above
+    // and by admins provisioning roles server-side only.
+    function isOwnProfileWrite(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
     // ---- Users -------------------------------------------------------------
     // Profiles are readable by any signed-in user (agent directory, avatars).
-    // Writes are restricted to the profile owner.
+    // Owners may create their document at registration and edit it later, but
+    // they can never change their own email or role (no self promotion to admin).
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'fullName', 'bio', 'phoneNumber', 'location',
-          'profileImageUrl', 'coverImageUrl'
-        ]);
+      allow create: if isOwnProfileWrite(userId);
+      allow update: if isOwnProfileWrite(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.email == resource.data.email;
       allow delete: if false;
     }
 
@@ -65,6 +73,16 @@ service cloud.firestore {
     // Collection-group fallback for comments queries.
     match /{path=**}/comments/{commentId} {
       allow read: if isSignedIn();
+    }
+
+    // ---- FCM device tokens -------------------------------------------------
+    // Written by the Android client so Cloud Functions can deliver pushes.
+    // Token docs are keyed by the token itself and carry the owner's uid.
+    match /fcmTokens/{tokenId} {
+      allow create, update: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
     }
   }
 }

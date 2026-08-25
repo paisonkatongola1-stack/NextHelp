@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "creatorId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "comments",
+      "fieldPath": "timestamp",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
+}

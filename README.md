@@ -75,18 +75,38 @@ domain interfaces and talks to Firebase.
    the Firebase console.
 4. Run: `./gradlew :app:installDebug`
 
+## Web app (`public/`)
+
+A no-build single-page app served by Firebase Hosting alongside the APK download
+page. Same Firestore data as the Android app — sign in on either platform and
+your tickets are there.
+
+- **Stack**: vanilla ES modules + Firebase JS SDK from the gstatic CDN. No bundler.
+- **Config**: on Hosting, the reserved `/__/firebase/init.json` is used
+  automatically. For local static serving, generate `public/firebase-config.js`
+  (gitignored) from your keys — see the setup card the app shows when no config
+  is found.
+- **Features**: email/password + Google Sign-In, password reset, dashboard,
+  ticket list with search/filters, create ticket with photo attachment,
+  chat-style realtime comments, agent status workflow with progress timeline,
+  inbox (conversations + activity feed with per-type preferences), profile with
+  avatar upload, responsive (bottom nav on phones, sidebar on desktop).
+- **Local test**: `python3 -m http.server 8137 -d public` then open
+  `http://localhost:8137`.
+
 ## Firebase notes
 
-- **Composite index**: non-agent queries combine `whereEqualTo(creatorId)` with
-  `orderBy(createdAt desc)` — create that composite index if the console links one.
-- **Collection group index** for `comments` is auto-created for single-field
-  queries (`timestamp`).
 - **Push notifications**: `functions/` hosts Firestore triggers that deliver
   pushes when tickets are created/assigned/reassigned or change status, and when
   comments arrive. Deploy with `firebase deploy --only functions`. The client
   stamps `updatedBy` on mutations and `authorId` on comments so senders don't
   get notified about their own actions; invalid FCM tokens are pruned after a
   failed send.
+- **Composite index**: non-agent queries combine `whereEqualTo(creatorId)` with
+  `orderBy(createdAt desc)` — defined in `firestore.indexes.json`.
+- **Collection group index**: `comments.timestamp` (COLLECTION_GROUP, DESC) is
+  required by the inbox feed — defined in `firestore.indexes.json` and deployed
+  with `firebase deploy --only firestore:indexes`.
 - **Firestore rules** must allow:
   - ticket read/create scoped by `creatorId` vs. agent role
   - `tickets/{id}/comments` subcollection read/write for viewers of the ticket
