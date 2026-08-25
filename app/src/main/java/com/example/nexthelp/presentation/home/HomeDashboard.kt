@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ConfirmationNumber
@@ -52,6 +53,7 @@ import com.example.nexthelp.core.ui.components.TicketCardSkeleton
 import com.example.nexthelp.core.util.Resource
 import com.example.nexthelp.core.util.TimeFormat
 import com.example.nexthelp.domain.models.Ticket
+import com.example.nexthelp.domain.models.UserRole
 import com.example.nexthelp.presentation.auth.AuthViewModel
 import com.example.nexthelp.presentation.tickets.TicketStats
 import com.example.nexthelp.presentation.tickets.TicketViewModel
@@ -63,6 +65,7 @@ fun HomeDashboard(
     onTicketClick: (String) -> Unit,
     onViewAllTickets: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenAdminConsole: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel(),
     ticketViewModel: TicketViewModel = hiltViewModel()
 ) {
@@ -97,10 +100,12 @@ fun HomeDashboard(
                 tickets = state.data.orEmpty(),
                 stats = stats,
                 userName = currentUser?.fullName,
+                isAdmin = currentUser?.role == UserRole.ADMIN,
                 onCreateTicket = onCreateTicket,
                 onTicketClick = onTicketClick,
                 onViewAllTickets = onViewAllTickets,
-                onOpenNotifications = onOpenNotifications
+                onOpenNotifications = onOpenNotifications,
+                onOpenAdminConsole = onOpenAdminConsole
             )
         }
     }
@@ -145,10 +150,12 @@ private fun SuccessContent(
     tickets: List<Ticket>,
     stats: TicketStats,
     userName: String?,
+    isAdmin: Boolean,
     onCreateTicket: () -> Unit,
     onTicketClick: (String) -> Unit,
     onViewAllTickets: () -> Unit,
-    onOpenNotifications: () -> Unit
+    onOpenNotifications: () -> Unit,
+    onOpenAdminConsole: () -> Unit
 ) {
     Column(
         Modifier
@@ -232,6 +239,17 @@ private fun SuccessContent(
                 label = "Help center",
                 onClick = { showHelpDialog = true },
                 modifier = Modifier.weight(1f)
+            )
+        }
+
+        if (isAdmin) {
+            Spacer(Modifier.height(10.dp))
+            QuickActionCard(
+                icon = Icons.Default.AdminPanelSettings,
+                label = "Admin dashboard",
+                onClick = onOpenAdminConsole,
+                emphasized = true,
+                modifier = Modifier.fillMaxWidth()
             )
         }
 

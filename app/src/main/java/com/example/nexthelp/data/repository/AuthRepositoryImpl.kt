@@ -19,28 +19,38 @@ import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.example.nexthelp.core.util.ApplicationScope
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     private val sessionManager: SessionManager,
-    private val appConfig: AppConfig
+    private val appConfig: AppConfig,
+    @ApplicationScope private val appScope: CoroutineScope
 ) : AuthRepository {
 
-    private var devSessionActive = false
     private var userProfileListener: ListenerRegistration? = null
 
     init {
         firebaseAuth.addAuthStateListener { auth ->
-            if (devSessionActive) return@addAuthStateListener
-
             val fbUser = auth.currentUser
             sessionManager.update(fbUser?.toDomainUser())
-            if (fbUser != null) observeUserProfile(fbUser.uid) else clearUserProfileListener()
+            if (fbUser != null) {
+                // Self-heal admin profiles on session restore (not just fresh
+                // logins) so the elevated role is always present in Firestore.
+                if (appConfig.isAdminEmail(fbUser.email)) {
+                    appScope.launch { ensureAdminProfile(fbUser) }
+                }
+                observeUserProfile(fbUser.uid)
+            } else {
+                clearUserProfileListener()
+            }
         }
     }
 
@@ -52,7 +62,6 @@ class AuthRepositoryImpl @Inject constructor(
         clearUserProfileListener()
         userProfileListener = firestore.collection(USERS_COLLECTION).document(uid)
             .addSnapshotListener { snapshot, _ ->
-                if (devSessionActive) return@addSnapshotListener
                 val doc = snapshot?.toObject(User::class.java)
                 if (snapshot != null && !snapshot.exists()) {
                     // Legacy account without a profile document: create it from Auth.
@@ -91,44 +100,64 @@ class AuthRepositoryImpl @Inject constructor(
         val trimmedEmail = email.trim()
         val trimmedPassword = password.trim()
 
-        // Dev-only login so the team can work without Firebase Auth being fully configured.
-        // Credentials come from local.properties and are only present in debug builds.
-        if (appConfig.isDevLoginEnabled &&
+        // The configured admin credentials guarantee a real Firebase Auth account
+        // exists (provisioned on first use) so security rules receive a valid
+        // token — the admin is never a synthetic local session.
+        val isAdminLogin = appConfig.isDevLoginEnabled &&
             trimmedEmail.equals(appConfig.devAdminEmail, ignoreCase = true) &&
             trimmedPassword == appConfig.devAdminPassword
-        ) {
-            val adminUser = User(
-                id = DEV_USER_ID,
-                fullName = "Administrator",
-                email = trimmedEmail,
-                role = UserRole.ADMIN
-            )
-            devSessionActive = true
-            sessionManager.update(adminUser)
-            return Resource.Success(adminUser)
-        }
 
         return try {
-            val result = firebaseAuth.signInWithEmailAndPassword(trimmedEmail, trimmedPassword).await()
-            val user = result.user!!.toDomainUser()
-            devSessionActive = false
-            sessionManager.update(user)
-            observeUserProfile(user.id)
-            Resource.Success(user)
+            val result = try {
+                firebaseAuth.signInWithEmailAndPassword(trimmedEmail, trimmedPassword).await()
+            } catch (e: FirebaseAuthInvalidUserException) {
+                if (!isAdminLogin) throw e
+                // First run with the configured admin credentials: create the account.
+                firebaseAuth.createUserWithEmailAndPassword(trimmedEmail, trimmedPassword).await()
+            }
+            val fbUser = result.user!!
+            if (isAdminLogin || appConfig.isAdminEmail(fbUser.email)) {
+                ensureAdminProfile(fbUser)
+            }
+            sessionManager.update(fbUser.toDomainUser())
+            observeUserProfile(fbUser.uid)
+            Resource.Success(fbUser.toDomainUser())
         } catch (e: Exception) {
             Resource.Error(e.friendlyMessage(fallback = "Login failed. Please try again."))
         }
     }
 
+    /**
+     * Makes sure the admin's Firestore profile document exists and carries the
+     * ADMIN role so ticket queries and rules treat them as support staff.
+     */
+    private suspend fun ensureAdminProfile(fbUser: FirebaseUser) {
+        val ref = firestore.collection(USERS_COLLECTION).document(fbUser.uid)
+        val doc = try {
+            ref.get().await()
+        } catch (_: Exception) {
+            null
+        }
+        val alreadyAdmin = doc?.exists() == true && doc.getString("role") == UserRole.ADMIN.name
+        if (alreadyAdmin) return
+
+        // Never let profile provisioning block sign-in itself.
+        try {
+            val profile = User(
+                id = fbUser.uid,
+                fullName = fbUser.displayName?.takeIf { it.isNotBlank() } ?: "Administrator",
+                email = fbUser.email ?: "",
+                role = UserRole.ADMIN,
+                createdAt = doc?.getLong("createdAt") ?: System.currentTimeMillis()
+            )
+            ref.set(profile, SetOptions.merge()).await()
+        } catch (_: Exception) {
+            // Ignored on purpose.
+        }
+    }
+
     override suspend fun registerWithEmail(email: String, fullName: String, password: String): Resource<User> {
         val trimmedEmail = email.trim()
-
-        if (appConfig.isAdminEmail(trimmedEmail) && appConfig.isDevLoginEnabled) {
-            val adminUser = User(DEV_USER_ID, fullName.ifBlank { "Administrator" }, trimmedEmail, UserRole.ADMIN)
-            devSessionActive = true
-            sessionManager.update(adminUser)
-            return Resource.Success(adminUser)
-        }
 
         return try {
             val result = firebaseAuth.createUserWithEmailAndPassword(trimmedEmail, password).await()
@@ -141,7 +170,6 @@ class AuthRepositoryImpl @Inject constructor(
                 createdAt = System.currentTimeMillis()
             )
             firestore.collection(USERS_COLLECTION).document(user.id).set(user).await()
-            devSessionActive = false
             sessionManager.update(user)
             observeUserProfile(user.id)
             Resource.Success(user)
@@ -155,11 +183,6 @@ class AuthRepositoryImpl @Inject constructor(
         if (trimmed.isEmpty()) return Resource.Error("Name cannot be empty")
 
         val session = sessionManager.currentUser.value ?: return Resource.Error("You are signed out.")
-        if (session.id == DEV_USER_ID) {
-            // The dev session has no backing Firebase profile to update.
-            sessionManager.update(session.copy(fullName = trimmed))
-            return Resource.Success(Unit)
-        }
 
         return try {
             firebaseAuth.currentUser?.updateProfile(
@@ -189,11 +212,6 @@ class AuthRepositoryImpl @Inject constructor(
             location = location.trim()
         )
 
-        if (session.id == DEV_USER_ID) {
-            sessionManager.update(updated)
-            return Resource.Success(Unit)
-        }
-
         return try {
             firestore.collection(USERS_COLLECTION).document(session.id)
                 .set(
@@ -213,7 +231,6 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun logout() {
-        devSessionActive = false
         clearUserProfileListener()
         sessionManager.update(null)
         firebaseAuth.signOut()
@@ -226,7 +243,6 @@ class AuthRepositoryImpl @Inject constructor(
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             val result = firebaseAuth.signInWithCredential(credential).await()
             val fbUser = result.user ?: return Resource.Error("Sign-in failed. Please try again.")
-            devSessionActive = false
 
             // First-time Google users get a profile document created for them.
             val existingDoc = firestore.collection(USERS_COLLECTION).document(fbUser.uid).get().await()
@@ -272,7 +288,6 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     private companion object {
-        const val DEV_USER_ID = "admin-dev-id"
         const val USERS_COLLECTION = "users"
         const val FULL_NAME_FIELD = "fullName"
         const val BIO_FIELD = "bio"
