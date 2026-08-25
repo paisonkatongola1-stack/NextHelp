@@ -2,59 +2,26 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NextHelp — Download for Android</title>
-<meta name="description" content="NextHelp helpdesk app for Android. Download the latest APK.">
-<style>
-  :root {
-    --bg: #0f1419; --card: #1a2129; --accent: #4a9eff; --text: #e8edf2; --muted: #8b98a5;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text);
-    min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    padding: 24px;
-  }
-  .card {
-    background: var(--card); border-radius: 24px; padding: 48px 40px;
-    max-width: 480px; width: 100%; text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,.45);
-  }
-  .logo { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 20px; object-fit: cover; }
-  h1 { font-size: 2rem; margin-bottom: 8px; }
-  .tagline { color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 10px;
-    background: var(--accent); color: #fff; text-decoration: none;
-    font-size: 1.05rem; font-weight: 600;
-    padding: 16px 36px; border-radius: 14px;
-    transition: transform .15s ease, filter .15s ease;
-  }
-  .btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
-  .meta { margin-top: 18px; color: var(--muted); font-size: .85rem; }
-  ol {
-    text-align: left; margin: 28px auto 0; max-width: 340px;
-    color: var(--muted); font-size: .9rem; line-height: 1.9;
-  }
-  ol strong { color: var(--text); }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<title>NextHelp — Support that keeps you moving</title>
+<meta name="description" content="NextHelp helpdesk — file support tickets, chat with the team, and track resolutions on any device.">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<main class="card">
-  <img class="logo" src="/logo.png" alt="NextHelp logo">
-  <h1>NextHelp</h1>
-  <p class="tagline">Support ticketing that keeps your team and customers in sync — create, assign, and resolve tickets with real-time push updates.</p>
-  <a class="btn" id="downloadBtn" href="https://github.com/paisonkatongola1-stack/NextHelp/releases/latest/download/nexthelp-1.0.apk">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v11.17l3.59-3.58L17 12l-5 5-5-5 1.41-1.41L12 14.17V3h0m0-2c-.55 0-1 .45-1 1v11.17l-2.88-2.87a1 1 0 1 0-1.41 1.41l4.58 4.59a1 1 0 0 0 1.42 0l4.58-4.59a1 1 0 1 0-1.41-1.41L13 13.17V2c0-.55-.45-1-1-1z"/><path d="M19 19H5v-2H3v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2h-2v2z"/></svg>
-    Download APK
-  </a>
-  <p class="meta">Version 1.0 &middot; Android 7.0+ (API 24) &middot; 3.5 MB</p>
-  <ol>
-    <li><strong>Download</strong> the APK on your Android phone.</li>
-    <li><strong>Open it</strong> and allow installs from your browser if asked.</li>
-    <li><strong>Sign in or register</strong> to start using NextHelp.</li>
-  </ol>
-</main>
+<div id="app" aria-live="polite">
+  <div class="boot-splash">
+    <img src="logo.png" alt="NextHelp" width="88" height="88">
+    <div class="boot-spinner"></div>
+  </div>
+</div>
+
+<div id="toast-host" class="toast-host"></div>
+
+<script src="firebase-config.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

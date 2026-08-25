@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "nexthelp-af2c5",
     "public": "public",
     "ignore": [
       "firebase.json",
@@ -16,7 +17,8 @@
     ]
   },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"

@@ -29,6 +29,9 @@ keystore.properties
 # Distributed via Firebase Hosting, not git
 public/apk/
 
+# Local web Firebase config (derived from local.properties, never commit)
+public/firebase-config.js
+
 # Firebase CLI cache
 .firebase/
 
