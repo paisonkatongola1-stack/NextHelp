@@ -16,6 +16,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   addDoc,
@@ -24,6 +25,7 @@ import {
   where,
   orderBy,
   limit as fsLimit,
+  startAfter,
   onSnapshot,
   collectionGroup
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
@@ -47,7 +49,11 @@ const state = {
   profile: null,
   tickets: [],
   ticketsLoading: true,
+  olderTickets: [],
+  olderLoading: false,
+  olderExhausted: false,
   latestComments: new Map(),
+  agents: [],
   route: { name: "home" },
   authMode: "login",
   authError: "",
@@ -277,9 +283,13 @@ function watchProfile(uid) {
 function restartTicketsStream() {
   unsubscribeTickets?.();
   state.tickets = [];
+  state.olderTickets = [];
+  state.olderExhausted = false;
   state.ticketsLoading = true;
 
   if (!state.db || !state.fbUser) return;
+
+  loadAgents();
 
   let q;
   if (isAgent()) {
@@ -322,6 +332,62 @@ function restartTicketsStream() {
       console.warn("comments feed unavailable:", err.code || err.message);
     }
   );
+}
+
+async function loadAgents() {
+  try {
+    const snap = await getDocs(query(
+      collection(state.db, "users"),
+      where("role", "in", ["SUPPORT_AGENT", "SUPPORT_MANAGER", "ADMIN"])
+    ));
+    state.agents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    scheduleRender();
+  } catch (err) {
+    console.warn("agent list unavailable:", err.code || err.message);
+  }
+}
+
+function allTickets() {
+  const merged = [...state.tickets];
+  const seen = new Set(merged.map(t => t.id));
+  for (const t of state.olderTickets) {
+    if (!seen.has(t.id)) merged.push(t);
+  }
+  return merged;
+}
+
+async function loadOlderTickets() {
+  if (state.olderLoading || state.olderExhausted) return;
+  const merged = allTickets();
+  const oldest = merged[merged.length - 1];
+  if (!oldest) return;
+  state.olderLoading = true;
+  scheduleRender();
+  try {
+    const oldestSnap = await getDoc(doc(state.db, "tickets", oldest.id));
+    let q;
+    if (isAgent()) {
+      q = query(collection(state.db, "tickets"), orderBy("createdAt", "desc"), startAfter(oldestSnap), fsLimit(50));
+    } else {
+      q = query(
+        collection(state.db, "tickets"),
+        where("creatorId", "==", state.fbUser.uid),
+        orderBy("createdAt", "desc"),
+        startAfter(oldestSnap),
+        fsLimit(50)
+      );
+    }
+    const snap = await getDocs(q);
+    const page = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const seen = new Set(merged.map(t => t.id));
+    state.olderTickets = [...state.olderTickets, ...page.filter(t => !seen.has(t.id))];
+    if (page.length < 50) state.olderExhausted = true;
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    state.olderLoading = false;
+    scheduleRender();
+  }
 }
 
 function stopStreams() {
@@ -473,7 +539,7 @@ function statusChangeTitle(status) {
 }
 
 function visibleTickets() {
-  let list = state.tickets;
+  let list = allTickets();
   const term = state.ticketSearch.trim().toLowerCase();
   if (term) {
     list = list.filter(t =>
@@ -809,7 +875,10 @@ function renderTickets(root) {
           ${state.ticketsLoading && !state.tickets.length
             ? skeletonList()
             : list.length
-              ? `<div class="ticket-list">${list.map(ticketCard).join("")}</div>`
+              ? `<div class="ticket-list">${list.map(ticketCard).join("")}</div>
+                 ${!state.olderExhausted && allTickets().length >= (isAgent() ? 100 : 50)
+                   ? `<div class="spacer"></div><button class="btn ghost small" style="width:100%" id="load-more" ${state.olderLoading ? "disabled" : ""}>${state.olderLoading ? "Loading…" : "Load older tickets"}</button>`
+                   : ""}`
               : emptyState("🗂️", "Nothing here", state.ticketSearch || state.ticketFilter !== "ALL"
                   ? "No tickets match the current search or filters."
                   : "Tickets you submit will show up here.")}
@@ -845,6 +914,8 @@ function renderTickets(root) {
     $$("#filter-row .fchip", root).forEach(c => c.classList.toggle("on", c.dataset.filter === state.ticketFilter));
     $("#ticket-list", root).innerHTML = renderTicketListInner();
   });
+
+  $("#load-more", root)?.addEventListener("click", loadOlderTickets);
 }
 
 function renderTicketListInner() {
@@ -853,7 +924,10 @@ function renderTicketListInner() {
   if (!list.length) {
     return emptyState("🗂️", "Nothing here", "No tickets match the current filters.");
   }
-  return `<div class="ticket-list">${list.map(ticketCard).join("")}</div>`;
+  return `<div class="ticket-list">${list.map(ticketCard).join("")}</div>
+    ${!state.olderExhausted && allTickets().length >= (isAgent() ? 100 : 50) && !state.ticketSearch && state.ticketFilter === "ALL"
+      ? `<div class="spacer"></div><button class="btn ghost small" style="width:100%" id="load-more" ${state.olderLoading ? "disabled" : ""}>${state.olderLoading ? "Loading…" : "Load older tickets"}</button>`
+      : ""}`;
 }
 
 function renderInbox(root) {
@@ -957,14 +1031,60 @@ function detailActions(t) {
     const options = STATUSES.filter(s => s !== t.status)
       .map(s => `<option value="${s}">${statusLabel(s)}</option>`).join("");
     buttons.push(`
-      <select id="status-select" class="fchip" style="padding:9px 12px;border-radius:12px">
+      <select id="status-select" class="fchip" style="padding:9px 12px;border-radius:12px" aria-label="Change status">
         <option value="" selected disabled>Change status…</option>
         ${options}
+      </select>`);
+    const agentOptions = state.agents
+      .map(a => `<option value="${esc(a.id)}" ${a.id === t.assignedAgentId ? "selected" : ""}>${esc(a.fullName || "Agent")}</option>`)
+      .join("");
+    buttons.push(`
+      <select id="assign-select" class="fchip" style="padding:9px 12px;border-radius:12px" aria-label="Assign agent">
+        <option value="" ${!t.assignedAgentId ? "selected" : ""} disabled>${t.assignedAgentId ? "Reassign…" : "Assign to…"}</option>
+        ${agentOptions}
+        ${t.assignedAgentId ? '<option value="__unassign__">Unassign</option>' : ""}
       </select>`);
   } else if (terminal) {
     buttons.push(`<button class="btn ghost small" id="reopen-btn">Reopen ticket</button>`);
   }
   return buttons.join("");
+}
+
+async function applyAssignment(value) {
+  const t = state.detail?.ticket;
+  if (!t || !value || state.statusBusy) return;
+  state.statusBusy = true;
+  scheduleRender();
+  try {
+    if (value === "__unassign__") {
+      await updateDoc(doc(state.db, "tickets", t.id), {
+        assignedAgentId: deleteField(),
+        assignedAgentName: deleteField(),
+        status: t.status === "ASSIGNED" ? "OPEN" : t.status,
+        updatedAt: Date.now(),
+        updatedBy: state.fbUser.uid,
+        resolvedAt: deleteField(),
+        closedAt: deleteField()
+      });
+      toast("Ticket unassigned");
+    } else {
+      const agent = state.agents.find(a => a.id === value);
+      const wasUnassigned = !t.assignedAgentId;
+      await updateDoc(doc(state.db, "tickets", t.id), {
+        assignedAgentId: value,
+        assignedAgentName: agent?.fullName || "Agent",
+        status: wasUnassigned && t.status === "OPEN" ? "ASSIGNED" : t.status,
+        updatedAt: Date.now(),
+        updatedBy: state.fbUser.uid
+      });
+      toast("Assigned to " + (agent?.fullName || "agent"));
+    }
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    state.statusBusy = false;
+    scheduleRender();
+  }
 }
 
 async function applyStatus(newStatus) {
@@ -1154,6 +1274,7 @@ function renderDetail(root) {
   scroll.scrollTop = scroll.scrollHeight;
 
   $("#status-select", root)?.addEventListener("change", (e) => applyStatus(e.target.value));
+  $("#assign-select", root)?.addEventListener("change", (e) => applyAssignment(e.target.value));
   $("#reopen-btn", root)?.addEventListener("click", () => applyStatus("REOPENED"));
 
   const input = $("#chat-input", root);
@@ -1580,6 +1701,10 @@ function render() {
 }
 
 async function main() {
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+
   const cfg = await loadConfig();
   if (!cfg) {
     renderConfigError($("#app"));
