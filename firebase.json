@@ -11,7 +11,10 @@
       {
         "source": "/apk/**",
         "headers": [
-          { "key": "Content-Type", "value": "application/vnd.android.package-archive" }
+          {
+            "key": "Content-Type",
+            "value": "application/vnd.android.package-archive"
+          }
         ]
       }
     ]
@@ -19,9 +22,6 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
-  },
-  "storage": {
-    "rules": "storage.rules"
   },
   "functions": {
     "source": "functions"

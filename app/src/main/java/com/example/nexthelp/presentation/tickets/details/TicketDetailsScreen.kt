@@ -35,6 +35,7 @@ import com.example.nexthelp.core.ui.components.labelColor
 import com.example.nexthelp.core.util.Resource
 import com.example.nexthelp.domain.models.Ticket
 import com.example.nexthelp.domain.models.TicketPriority
+import com.example.nexthelp.domain.models.TicketStatus
 import com.example.nexthelp.domain.models.User
 import com.example.nexthelp.domain.models.canHandleTickets
 import com.example.nexthelp.presentation.tickets.TicketViewModel
@@ -112,6 +113,13 @@ fun TicketDetailsScreen(
                     ) {
                         item { TicketHeader(ticket) }
                         item { TicketTimelineCard(ticket.status) }
+                        item {
+                            StatusActionsCard(
+                                ticket = ticket,
+                                canManage = canManageAssignment,
+                                onUpdateStatus = { status -> viewModel.updateStatus(ticket.id, status) }
+                            )
+                        }
                         item {
                             AssignmentCard(
                                 ticket = ticket,
@@ -275,6 +283,62 @@ fun TicketHeader(ticket: Ticket) {
                 DetailRow("Location", ticket.requesterLocation)
             }
             DetailRow("Created", formatDate(ticket.createdAt))
+        }
+    }
+}
+
+@Composable
+fun StatusActionsCard(
+    ticket: Ticket,
+    canManage: Boolean,
+    onUpdateStatus: (TicketStatus) -> Unit
+) {
+    val terminal = ticket.status == TicketStatus.RESOLVED || ticket.status == TicketStatus.CLOSED
+    if (!canManage && !terminal) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (canManage) {
+                var menuExpanded by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { menuExpanded = true }) {
+                        Text("Change status")
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose status")
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        TicketStatus.entries
+                            .filter { it != ticket.status }
+                            .forEach { status ->
+                                DropdownMenuItem(
+                                    text = { Text(status.displayLabel) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onUpdateStatus(status)
+                                    }
+                                )
+                            }
+                    }
+                }
+            }
+            if (terminal) {
+                OutlinedButton(onClick = { onUpdateStatus(TicketStatus.REOPENED) }) {
+                    Text("Reopen ticket", color = MaterialTheme.colorScheme.primary)
+                }
+            }
         }
     }
 }

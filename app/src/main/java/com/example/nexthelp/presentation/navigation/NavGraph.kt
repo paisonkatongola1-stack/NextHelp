@@ -1,5 +1,7 @@
 package com.example.nexthelp.presentation.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,6 +36,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.nexthelp.core.ui.rememberReducedMotion
 import com.example.nexthelp.domain.models.UserRole
 import com.example.nexthelp.presentation.auth.AuthViewModel
 import com.example.nexthelp.presentation.auth.ForgotPasswordScreen
@@ -57,12 +60,24 @@ fun NextHelpNavGraph(
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle(initialValue = null)
+    val reducedMotion = rememberReducedMotion()
 
-    // Tab transitions: subtle horizontal shift + fade.
-    val enterTab = fadeIn(tween(TAB_ANIM)) + slideInHorizontally(tween(TAB_ANIM)) { it / 16 }
-    val exitTab = fadeOut(tween(TAB_ANIM))
-    val popEnterTab = fadeIn(tween(TAB_ANIM))
-    val popExitTab = fadeOut(tween(TAB_ANIM)) + slideOutHorizontally(tween(TAB_ANIM)) { -it / 16 }
+    // Tab transitions: subtle horizontal shift + fade. Honors the system
+    // "remove animations" accessibility setting by dropping to hard cuts.
+    val enterTab =
+        if (reducedMotion) EnterTransition.None
+        else fadeIn(tween(TAB_ANIM)) + slideInHorizontally(tween(TAB_ANIM)) { it / 16 }
+    val exitTab = if (reducedMotion) ExitTransition.None else fadeOut(tween(TAB_ANIM))
+    val popEnterTab = if (reducedMotion) EnterTransition.None else fadeIn(tween(TAB_ANIM))
+    val popExitTab =
+        if (reducedMotion) ExitTransition.None
+        else fadeOut(tween(TAB_ANIM)) + slideOutHorizontally(tween(TAB_ANIM)) { -it / 16 }
+
+    val enterSheet: EnterTransition =
+        if (reducedMotion) EnterTransition.None
+        else slideInVertically(tween(280)) { it } + fadeIn(tween(280))
+    val exitSheetFade: ExitTransition =
+        if (reducedMotion) ExitTransition.None else fadeOut(tween(200))
 
     NavHost(
         navController = navController,
@@ -92,8 +107,8 @@ fun NextHelpNavGraph(
 
         composable(
             Screen.Login.route,
-            enterTransition = { slideInVertically(tween(280)) { it } + fadeIn(tween(280)) },
-            popExitTransition = { fadeOut(tween(200)) }
+            enterTransition = { enterSheet },
+            popExitTransition = { exitSheetFade }
         ) {
             LoginScreen(
                 onLoginSuccess = {
@@ -160,9 +175,9 @@ fun NextHelpNavGraph(
 
         composable(
             Screen.CreateTicket.route,
-            enterTransition = { slideInVertically(tween(260)) { it } + fadeIn(tween(260)) },
-            exitTransition = { fadeOut(tween(200)) },
-            popEnterTransition = { fadeIn(tween(200)) },
+            enterTransition = { enterSheet },
+            exitTransition = { exitSheetFade },
+            popEnterTransition = { if (reducedMotion) EnterTransition.None else fadeIn(tween(200)) },
             popExitTransition = { slideOutVertically(tween(240)) { it } + fadeOut(tween(240)) }
         ) {
             CreateTicketScreen(onNavigateBack = { navController.popBackStack() })
