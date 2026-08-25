@@ -20,9 +20,22 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** A chat-style entry: the latest message exchanged on one ticket thread. */
+data class InboxConversation(
+    val ticketId: String,
+    val ticketNumber: String,
+    val subject: String,
+    val authorName: String,
+    val snippet: String,
+    val timestamp: Long,
+    val fromMe: Boolean,
+    val unread: Boolean
+)
+
 data class GroupedNotifications(
     val loading: Boolean = true,
     val groups: List<Pair<String, List<AppNotification>>> = emptyList(),
+    val conversations: List<InboxConversation> = emptyList(),
     val unreadIds: Set<String> = emptySet(),
     val enabledTypes: Set<NotificationType> =
         setOf(
@@ -113,9 +126,31 @@ class NotificationsViewModel @Inject constructor(
             .map { it.id }
             .toSet()
 
+        // Chat-style view of the latest message per ticket thread.
+        val ticketsById = tickets.associateBy { it.id }
+        val conversations = latestComments.mapNotNull { (ticketId, comment) ->
+            val ticket = ticketsById[ticketId] ?: return@mapNotNull null
+            val snippet = when {
+                comment.content.isNotBlank() -> comment.content
+                comment.imageUrl != null -> "\ud83d\udcf7 Photo"
+                else -> return@mapNotNull null
+            }
+            InboxConversation(
+                ticketId = ticketId,
+                ticketNumber = ticket.ticketNumber,
+                subject = ticket.subject,
+                authorName = comment.authorName.ifBlank { "Someone" },
+                snippet = snippet,
+                timestamp = comment.timestamp,
+                fromMe = comment.authorId != null && comment.authorId == user?.id,
+                unread = comment.timestamp > lastSeen && comment.authorId != user?.id
+            )
+        }.sortedByDescending { it.timestamp }
+
         GroupedNotifications(
             loading = false,
             groups = NotificationFactory.groupByDay(notifications),
+            conversations = conversations,
             unreadIds = unreadIds,
             enabledTypes = enabledTypes
         )

@@ -15,6 +15,12 @@ interface TicketRepository {
     fun getTickets(pageSize: Int = DEFAULT_PAGE_SIZE): Flow<Resource<List<Ticket>>>
 
     /**
+     * Real-time subscription to ONLY the tickets created by the current user,
+     * regardless of their role (used by the profile screen).
+     */
+    fun getMyTickets(pageSize: Int = DEFAULT_PAGE_SIZE): Flow<Resource<List<Ticket>>>
+
+    /**
      * One-shot fetch of the next page of tickets, ordered by createdAt descending,
      * starting strictly after [cursor] (the oldest ticket currently loaded).
      */

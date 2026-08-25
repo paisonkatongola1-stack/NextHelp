@@ -17,10 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -28,6 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nexthelp.core.ui.components.EmptyState
+import com.example.nexthelp.core.ui.components.InitialsAvatar
 import com.example.nexthelp.core.ui.components.NotificationSkeleton
 import com.example.nexthelp.core.ui.components.SectionHeader
 import com.example.nexthelp.core.util.TimeFormat
@@ -48,6 +54,7 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showPreferences by remember { mutableStateOf(false) }
 
     // Opening the inbox marks everything as seen (after a short beat so the
     // unread state is visible first).
@@ -61,73 +68,189 @@ fun NotificationsScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Text(
-            text = "Notifications",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(top = 20.dp, bottom = 4.dp)
-        )
-        Text(
-            text = if (uiState.unreadIds.isNotEmpty()) {
-                "${uiState.unreadIds.size} new update" + if (uiState.unreadIds.size == 1) "" else "s"
-            } else {
-                "You're all caught up"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.secondary
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        NotificationPreferencesRow(
-            enabledTypes = uiState.enabledTypes,
-            onToggle = { type, enabled ->
-                when (type) {
-                    NotificationType.STATUS_CHANGED -> viewModel.setStatusEnabled(enabled)
-                    NotificationType.NEW_COMMENT -> viewModel.setCommentsEnabled(enabled)
-                    NotificationType.HIGH_PRIORITY -> viewModel.setPriorityEnabled(enabled)
-                    NotificationType.TICKET_RECEIVED -> Unit
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "Inbox",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    text = if (uiState.unreadIds.isNotEmpty()) {
+                        "${uiState.unreadIds.size} new update" + if (uiState.unreadIds.size == 1) "" else "s"
+                    } else {
+                        "You're all caught up"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
             }
-        )
+            IconButton(onClick = { showPreferences = !showPreferences }) {
+                Icon(
+                    Icons.Default.Tune,
+                    contentDescription = if (showPreferences) "Hide notification settings" else "Notification settings"
+                )
+            }
+        }
+
+        if (showPreferences) {
+            Spacer(Modifier.height(8.dp))
+            NotificationPreferencesRow(
+                enabledTypes = uiState.enabledTypes,
+                onToggle = { type, enabled ->
+                    when (type) {
+                        NotificationType.STATUS_CHANGED -> viewModel.setStatusEnabled(enabled)
+                        NotificationType.NEW_COMMENT -> viewModel.setCommentsEnabled(enabled)
+                        NotificationType.HIGH_PRIORITY -> viewModel.setPriorityEnabled(enabled)
+                        NotificationType.TICKET_RECEIVED -> Unit
+                    }
+                }
+            )
+        }
 
         Spacer(Modifier.height(8.dp))
 
+        val hasContent = uiState.conversations.isNotEmpty() || uiState.groups.isNotEmpty()
+
         when {
-            uiState.loading && uiState.groups.isEmpty() -> {
+            uiState.loading && !hasContent -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     repeat(5) { NotificationSkeleton() }
                 }
             }
-            uiState.groups.isEmpty() -> EmptyState(
+            !hasContent -> EmptyState(
                 icon = Icons.Outlined.NotificationsOff,
                 title = "No new notifications",
-                subtitle = "Updates about your tickets will appear here."
+                subtitle = "Updates and messages about your tickets will appear here."
             )
             else -> LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                uiState.groups.forEach { (groupLabel, items) ->
-                    item(key = "header-$groupLabel") {
+                if (uiState.conversations.isNotEmpty()) {
+                    item(key = "header-messages") {
                         SectionHeader(
-                            title = groupLabel,
+                            title = "Messages",
                             modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
                         )
                     }
                     items(
-                        count = items.size,
-                        key = { index -> items[index].id }
+                        count = uiState.conversations.size,
+                        key = { index -> "chat-${uiState.conversations[index].ticketId}" }
                     ) { index ->
-                        val notification = items[index]
-                        NotificationCard(
-                            notification = notification,
-                            unread = notification.id in uiState.unreadIds,
-                            onClick = { onNotificationClick(notification.ticketId) }
+                        val conversation = uiState.conversations[index]
+                        ConversationRow(
+                            conversation = conversation,
+                            onClick = { onNotificationClick(conversation.ticketId) }
                         )
                     }
                 }
+
+                if (uiState.groups.isNotEmpty()) {
+                    item(key = "header-activity") {
+                        SectionHeader(
+                            title = "Recent activity",
+                            modifier = Modifier.padding(top = 16.dp, bottom = 2.dp)
+                        )
+                    }
+                    uiState.groups.forEach { (groupLabel, items) ->
+                        item(key = "header-$groupLabel") {
+                            SectionHeader(
+                                title = groupLabel.uppercase(),
+                                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                            )
+                        }
+                        items(
+                            count = items.size,
+                            key = { index -> items[index].id }
+                        ) { index ->
+                            val notification = items[index]
+                            NotificationCard(
+                                notification = notification,
+                                unread = notification.id in uiState.unreadIds,
+                                onClick = { onNotificationClick(notification.ticketId) }
+                            )
+                        }
+                    }
+                }
+
                 item { Spacer(Modifier.height(96.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationRow(
+    conversation: InboxConversation,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+        ),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Row(
+            Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            InitialsAvatar(
+                fullName = conversation.authorName,
+                size = 42.dp
+            )
+
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = conversation.authorName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (!conversation.fromMe && conversation.unread) {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(8.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        )
+                    }
+                    Text(
+                        text = TimeFormat.relativeTime(conversation.timestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+                Text(
+                    text = conversation.snippet,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                Text(
+                    text = "#${conversation.ticketNumber} · ${conversation.subject}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }

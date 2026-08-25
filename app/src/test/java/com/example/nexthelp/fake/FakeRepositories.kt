@@ -32,6 +32,10 @@ class FakeTicketRepository : TicketRepository {
 
     override fun getTickets(pageSize: Int): Flow<Resource<List<Ticket>>> = ticketsFlow
 
+    val myTicketsFlow = MutableStateFlow<Resource<List<Ticket>>>(Resource.Success(emptyList()))
+
+    override fun getMyTickets(pageSize: Int): Flow<Resource<List<Ticket>>> = myTicketsFlow
+
     override suspend fun getTicketsAfter(
         cursor: Ticket,
         pageSize: Int

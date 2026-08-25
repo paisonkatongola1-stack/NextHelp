@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,27 +28,31 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -63,8 +66,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -120,8 +121,12 @@ class ProfileViewModel @Inject constructor(
 
     val user = authRepository.currentUser
 
-    /** Single real-time subscription feeding both stats and the activity feed. */
-    private val tickets: StateFlow<List<Ticket>> = ticketRepository.getTickets()
+    /**
+     * Single real-time subscription feeding both stats and the activity feed.
+     * Deliberately scoped to tickets the user created themselves — even agents
+     * and admins only see their own filings on their profile.
+     */
+    private val tickets: StateFlow<List<Ticket>> = ticketRepository.getMyTickets()
         .map { resource ->
             (resource as? com.example.nexthelp.core.util.Resource.Success)?.data.orEmpty()
         }
@@ -237,14 +242,11 @@ fun ProfileScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     val avatarPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> uri?.let { viewModel.onImagePicked(ProfileImageKind.AVATAR, it) } }
-
-    val coverPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri -> uri?.let { viewModel.onImagePicked(ProfileImageKind.COVER, it) } }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { message -> snackbarHostState.showSnackbar(message) }
@@ -257,48 +259,67 @@ fun ProfileScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ---- Cover ------------------------------------------------------
-            Box(Modifier.fillMaxWidth().height(200.dp)) {
-                if (user?.coverImageUrl != null) {
-                    AsyncImage(
-                        model = user?.coverImageUrl,
-                        contentDescription = "Cover photo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+            // ---- Header row with the section menu (hamburger) -----------------
+            Box(Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(top = 4.dp, end = 8.dp)
+                ) {
+                    Icon(Icons.Default.Menu, contentDescription = "Sections menu")
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.size(10.dp))
+                                Text("Activity")
+                            }
+                        },
+                        onClick = {
+                            selectedTab = 0
+                            showMenu = false
+                        }
                     )
-                } else {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary
-                                    )
-                                )
-                            )
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.size(10.dp))
+                                Text("About")
+                            }
+                        },
+                        onClick = {
+                            selectedTab = 1
+                            showMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.size(10.dp))
+                                Text("Settings")
+                            }
+                        },
+                        onClick = {
+                            selectedTab = 2
+                            showMenu = false
+                        }
                     )
                 }
-
-                CoverEditChip(
-                    uploading = uploadingKind == ProfileImageKind.COVER,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(12.dp),
-                    onClick = {
-                        coverPicker.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    }
-                )
             }
 
             // ---- Avatar + identity -------------------------------------------
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .offset(y = (-48).dp),
+                    .padding(top = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box {
@@ -446,13 +467,7 @@ fun ProfileScreen(
                 }
             }
 
-            // ---- Tabs ----------------------------------------------------------
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Activity") })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("About") })
-                Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Settings") })
-            }
-
+            // ---- Sections (switched from the hamburger menu) ------------------
             when (selectedTab) {
                 0 -> ActivityTab(recentTickets, onOpenTicket = onTicketClick)
                 1 -> AboutTab(user = user, onEditClick = { showEditDialog = true })

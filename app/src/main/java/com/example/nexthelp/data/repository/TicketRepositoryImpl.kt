@@ -32,6 +32,36 @@ class TicketRepositoryImpl @Inject constructor(
         return if (session.canHandleTickets) query else query.whereEqualTo(CREATOR_ID, session.id)
     }
 
+    private fun ownTicketsQuery(): Query? {
+        val session = sessionManager.currentUser.value ?: return null
+        return firestore.collection(TICKETS).whereEqualTo(CREATOR_ID, session.id)
+    }
+
+    override fun getMyTickets(pageSize: Int): Flow<Resource<List<Ticket>>> = callbackFlow {
+        trySend(Resource.Loading())
+
+        val query = ownTicketsQuery()
+        if (query == null) {
+            trySend(Resource.Error("You are signed out. Please log in again."))
+            awaitClose { }
+            return@callbackFlow
+        }
+
+        val listener = query
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(pageSize.toLong())
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Resource.Error(error.localizedMessage ?: "Failed to fetch tickets"))
+                    return@addSnapshotListener
+                }
+                val tickets = snapshot?.toObjects(Ticket::class.java) ?: emptyList()
+                trySend(Resource.Success(tickets))
+            }
+
+        awaitClose { listener.remove() }
+    }
+
     override fun getTickets(pageSize: Int): Flow<Resource<List<Ticket>>> = callbackFlow {
         trySend(Resource.Loading())
 

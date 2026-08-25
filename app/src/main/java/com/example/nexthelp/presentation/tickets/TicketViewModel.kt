@@ -235,7 +235,9 @@ class TicketViewModel @Inject constructor(
                     if (page.size < TicketRepository.DEFAULT_PAGE_SIZE) _hasMorePages.value = false
                     _olderPages.value = (_olderPages.value + page).distinctBy { it.id }
                 }
-                else -> Unit // Silent failure; pull-to-refresh retries the whole list.
+                is Resource.Error ->
+                    _eventFlow.emit(UiEvent.ShowSnackbar(result.message ?: "Couldn't load older tickets"))
+                else -> Unit
             }
             _isLoadingMore.value = false
         }
