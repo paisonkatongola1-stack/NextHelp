@@ -7,20 +7,46 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:599443092163:android:da77e393f7055cf7d46876",
+        "mobilesdk_app_id": "1:599443092163:android:00cab176e13f075ed46876",
         "android_client_info": {
           "package_name": "com.example.nexthelp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "599443092163-3n6u31eps173f53ssssft5m95db6f6hn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.nexthelp",
+            "certificate_hash": "b433fa2cbfd4c831724a6dcf52d3c541ae746eff"
+          }
+        },
+        {
+          "client_id": "599443092163-53j92anklpabdi9j5reeu1nqnhv19d28.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.nexthelp",
+            "certificate_hash": "03390ab6f089658184e76be1470f2f0c231989d0"
+          }
+        },
+        {
+          "client_id": "599443092163-n0enervtvnnruj2i4a3elvjnnk0qerbe.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyAsCwB5VMWjTkf2rs2gpiTUEqiZ1HnMXUI"
+          "current_key": "AIzaSyBFmKvUU-F5EqHj1AFyt3ZM44IHLwBY5GQ"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "599443092163-n0enervtvnnruj2i4a3elvjnnk0qerbe.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

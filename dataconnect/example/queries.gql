@@ -1,7 +1,7 @@
-mutation CreateCategory @auth(level: ADMIN) {
+mutation CreateCategory @auth(expr: "has(request.auth.token.admin)") {
   category_insert(data: {name: "General"})
 }
 
-mutation DeleteCategory($id: UUID!) @auth(level: ADMIN) {
+mutation DeleteCategory($id: UUID!) @auth(expr: "has(request.auth.token.admin)") {
   category_delete(id: $id)
 }
